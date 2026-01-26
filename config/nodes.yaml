@@ -1,0 +1,7 @@
+model_path: "C:/Users/rocha/Desktop/SAP2000 test/test.sdb"
+case_name: "NLTH_BATCH"
+nodes:
+  - {name: "BASE", joint: "13", z: 0.00}
+  - {name: "L01",  joint: "14", z: 3.66}
+  - {name: "L02", joint: "15", z: 7.32}
+  - {name: "ROOF", joint: "32", z: 10.97}
