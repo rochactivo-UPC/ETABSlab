@@ -1,2 +1,5 @@
 comtypes
 matplotlib
+scipy
+pandas
+pytest

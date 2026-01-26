@@ -2,3 +2,16 @@
 __pycache__/
 logs/*.log
 *.pyc
+
+# Resultados y datos pesados
+results/
+data/
+
+# SAP2000
+*.sdb
+*.log
+*.LOG
+
+# Sistema
+.DS_Store
+Thumbs.db
