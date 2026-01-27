@@ -21,15 +21,31 @@ def load_nodes_config(path: str):
 
     model_path = data.get("model_path")
     if not model_path:
-        raise ValueError("nodes.yaml debe incluir model_path")
+        raise ValueError("settings.yaml debe incluir model_path")
 
     case_name = data.get("case_name")
     if not case_name:
-        raise ValueError("nodes.yaml debe incluir case_name")
+        raise ValueError("settings.yaml debe incluir case_name")
+
+    output_time_step = float(data.get("output_time_step", 0.05))
+
+    nlth_case = data.get("nlth_case", {})
+    if nlth_case is None:
+        nlth_case = {}
+    if not isinstance(nlth_case, dict):
+        raise ValueError("settings.yaml: nlth_case debe ser un dict")
+
+    nlth_case_config = {
+        "apply_parameters": bool(nlth_case.get("apply_parameters", True)),
+        "damping": nlth_case.get("damping"),
+        "time_integration": nlth_case.get("time_integration"),
+        "nonlinear_parameters": nlth_case.get("nonlinear_parameters"),
+        "initial_conditions": nlth_case.get("initial_conditions"),
+    }
 
     nodes = data.get("nodes", [])
     if not isinstance(nodes, list) or not nodes:
-        raise ValueError("nodes.yaml debe incluir una lista no vacia de nodes")
+        raise ValueError("settings.yaml debe incluir una lista no vacia de nodes")
 
     specs = []
     seen_names = set()
@@ -47,4 +63,4 @@ def load_nodes_config(path: str):
             raise ValueError(f"Node sin z: {name}")
         specs.append(NodeSpec(name=name, joint=joint, z=float(entry["z"])))
 
-    return str(case_name), str(model_path), specs
+    return str(case_name), str(model_path), output_time_step, specs, nlth_case_config

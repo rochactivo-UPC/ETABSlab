@@ -51,7 +51,9 @@ def run_batch_from_catalog(
     catalog_csv,
     case_name="NLTH_BATCH",
     overwrite_functions=True,
-    resume=True
+    resume=True,
+    overwrite_results=True,
+    base_dir=None,
 ):
     print("[batch] Iniciando run_batch_from_catalog")
     catalog_path = Path(catalog_csv).resolve()
@@ -59,9 +61,9 @@ def run_batch_from_catalog(
         raise FileNotFoundError(catalog_path)
 
     print(f"[batch] Catalogo: {catalog_path}")
-    config_path = Path("config").resolve() / "nodes.yaml"
+    config_path = Path("config").resolve() / "settings.yaml"
     print(f"[batch] Config nodes: {config_path}")
-    _case_name_cfg, _model_path, nodes = load_nodes_config(config_path)
+    _case_name_cfg, _model_path, output_time_step, nodes, nlth_case_config = load_nodes_config(config_path)
     db_path = Path("results").resolve() / "edp.sqlite"
     print(f"[batch] DB: {db_path}")
     init_db(db_path)
@@ -69,6 +71,9 @@ def run_batch_from_catalog(
     catalog = pd.read_csv(catalog_path)
     print(f"[batch] Registros en catalogo: {len(catalog.index)}")
     results_path = Path("results").resolve() / "batch_results.csv"
+    if overwrite_results and results_path.exists():
+        print(f"[batch] Eliminando resultados previos: {results_path}")
+        results_path.unlink()
     existing = _load_existing_results(results_path)
     print(f"[batch] Resultados existentes: {len(existing.index)}")
 
@@ -99,10 +104,22 @@ def run_batch_from_catalog(
             if row.get("status_preprocess") != "OK":
                 raise RuntimeError("Registro con preproceso fallido")
 
-            x_txt = Path(row["x_txt_path"]).resolve()
-            y_txt = Path(row["y_txt_path"]).resolve()
+            def _resolve_path(path_value: str) -> Path:
+                raw = Path(path_value)
+                if raw.is_absolute():
+                    return raw
+                if base_dir is None:
+                    base = catalog_path.parent.parent
+                else:
+                    base = Path(base_dir)
+                return (base / raw).resolve()
+
+            x_txt = _resolve_path(row["x_txt_path"])
+            y_txt = _resolve_path(row["y_txt_path"])
             dt = float(row["dt"])
             n_steps = int(row["n_steps"])
+            duration = dt * n_steps
+            output_steps = max(1, int(round(duration / output_time_step)))
 
             func_x = f"TH_{record_id}_X"
             func_y = f"TH_{record_id}_Y"
@@ -129,7 +146,14 @@ def run_batch_from_catalog(
                 func_x=func_x,
                 func_y=func_y,
                 dt=dt,
-                n_steps=n_steps
+                n_steps=n_steps,
+                output_time_step=output_time_step,
+                output_steps=output_steps,
+                apply_parameters=nlth_case_config.get("apply_parameters", True),
+                damping=nlth_case_config.get("damping"),
+                time_integration=nlth_case_config.get("time_integration"),
+                nonlinear_parameters=nlth_case_config.get("nonlinear_parameters"),
+                initial_conditions=nlth_case_config.get("initial_conditions"),
             )
 
             print("  [batch] Ejecutando analisis")
