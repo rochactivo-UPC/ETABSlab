@@ -35,8 +35,11 @@ def init_db(db_path):
                 joint TEXT,
                 z REAL,
                 u1_max REAL,
+                u1_min REAL,
                 u2_max REAL,
+                u2_min REAL,
                 r_max REAL,
+                r_min REAL,
                 FOREIGN KEY(run_id) REFERENCES runs(run_id)
             )
             """
@@ -48,6 +51,12 @@ def init_db(db_path):
                 from_name TEXT,
                 to_name TEXT,
                 dz REAL,
+                drift_u1_max REAL,
+                drift_u1_min REAL,
+                drift_u2_max REAL,
+                drift_u2_min REAL,
+                drift_r_max REAL,
+                drift_r_min REAL,
                 drift_u1 REAL,
                 drift_u2 REAL,
                 drift_r REAL,
@@ -69,9 +78,25 @@ def init_db(db_path):
             )
             """
         )
+        _ensure_column(cursor, "node_disp", "u1_min", "REAL")
+        _ensure_column(cursor, "node_disp", "u2_min", "REAL")
+        _ensure_column(cursor, "node_disp", "r_min", "REAL")
+        _ensure_column(cursor, "drifts", "drift_u1_max", "REAL")
+        _ensure_column(cursor, "drifts", "drift_u1_min", "REAL")
+        _ensure_column(cursor, "drifts", "drift_u2_max", "REAL")
+        _ensure_column(cursor, "drifts", "drift_u2_min", "REAL")
+        _ensure_column(cursor, "drifts", "drift_r_max", "REAL")
+        _ensure_column(cursor, "drifts", "drift_r_min", "REAL")
         conn.commit()
     finally:
         conn.close()
+
+
+def _ensure_column(cursor, table_name, col_name, col_type):
+    cursor.execute(f"PRAGMA table_info({table_name})")
+    columns = {row[1] for row in cursor.fetchall()}
+    if col_name not in columns:
+        cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}")
 
 
 def insert_run(db_path, record_id, case_name, dt, n_steps, finished, error=""):
@@ -111,6 +136,7 @@ def insert_node_disp(db_path, run_id, df_nodes):
         rows = []
         for row in df_nodes.itertuples(index=False):
             r_max = getattr(row, "r_max", None)
+            r_min = getattr(row, "r_min", None)
             rows.append(
                 (
                     run_id,
@@ -118,16 +144,19 @@ def insert_node_disp(db_path, run_id, df_nodes):
                     row.joint,
                     float(row.z),
                     float(row.u1_max),
+                    float(row.u1_min),
                     float(row.u2_max),
+                    float(row.u2_min),
                     float(r_max) if r_max is not None else None,
+                    float(r_min) if r_min is not None else None,
                 )
             )
         cursor.executemany(
             """
             INSERT INTO node_disp (
-                run_id, name, joint, z, u1_max, u2_max, r_max
+                run_id, name, joint, z, u1_max, u1_min, u2_max, u2_min, r_max, r_min
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )
@@ -148,6 +177,12 @@ def insert_drifts(db_path, run_id, df_drifts):
                 row.from_name,
                 row.to_name,
                 float(row.dz),
+                float(row.drift_u1_max),
+                float(row.drift_u1_min),
+                float(row.drift_u2_max),
+                float(row.drift_u2_min),
+                float(row.drift_r_max),
+                float(row.drift_r_min),
                 float(row.drift_u1),
                 float(row.drift_u2),
                 float(row.drift_r),
@@ -157,9 +192,13 @@ def insert_drifts(db_path, run_id, df_drifts):
         cursor.executemany(
             """
             INSERT INTO drifts (
-                run_id, from_name, to_name, dz, drift_u1, drift_u2, drift_r
+                run_id, from_name, to_name, dz,
+                drift_u1_max, drift_u1_min,
+                drift_u2_max, drift_u2_min,
+                drift_r_max, drift_r_min,
+                drift_u1, drift_u2, drift_r
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             rows,
         )

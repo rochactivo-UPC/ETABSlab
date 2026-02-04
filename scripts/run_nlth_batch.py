@@ -45,7 +45,7 @@ def main():
     )
     logging.info("Iniciando run_nlth_batch")
     config_path = (base_dir / "config" / "settings.yaml").resolve()
-    case_name, model_path, _output_time_step, _nodes, _nlth_case_config = load_nodes_config(config_path)
+    case_name, model_path, _output_time_step, _nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(config_path)
     target_case = CASE_NAME or case_name
     target_model_path = MODEL_PATH or model_path
 

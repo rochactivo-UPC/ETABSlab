@@ -1,9 +1,9 @@
-model_path: "C:/Users/rocha/Desktop/SAP2000 test/test.sdb"  # Ruta al .sdb de SAP2000
+model_path: "C:/Users/rocha/Desktop/SAP2000 test/test1.sdb"  # Ruta al .sdb de SAP2000
 case_name: "NLTH_BATCH"  # Nombre del caso NLTH a crear/actualizar
 output_time_step: 0.05  # Paso de salida para resultados (s)
 output_units: "cm"  # unidades de salida (default: cm). Usa "cm" o un enum SAP2000 (kN_cm_C, Ton_cm_C, etc.)
 accel_in_g: true  # true = acelerogramas en g; aplica factor segun output_units
-overwrite_db: true  # true = borrar edp.sqlite antes de iniciar el batch
+overwrite_db: false  # true = borrar edp.sqlite antes de iniciar el batch
 nlth_case:
   apply_parameters: false  # true = aplica parámetros del bloque; false = deja defaults de SAP2000
   p_delta: true  # considerar efectos P-Delta al crear el caso
@@ -28,15 +28,15 @@ nlth_case:
     # dt_max_factor/dt_min_factor multiplican el dt del registro (row["dt"]).
     # También puedes fijar dt_max/dt_min directamente si lo prefieres.
     dt_max_factor: 1.0
-    dt_min_factor: 0.2
-    max_iter_cs: 6
-    max_iter_nr: 20
-    tol_conv_d: 0.001
+    dt_min_factor: 0.1
+    max_iter_cs: 10
+    max_iter_nr: 50
+    tol_conv_d: 0.0001
     use_event_stepping: true
-    tol_event_d: 0.005
-    max_line_search_per_iter: 3
+    tol_event_d: 0.001
+    max_line_search_per_iter: 5
     tol_line_search: 0.8
-    line_search_step_fact: 2.0
+    line_search_step_fact: 0.5
   initial_conditions:
     # Condiciones iniciales vía método + args de SAP2000 OAPI.
     # Si method está vacío, no se aplica.
@@ -44,8 +44,15 @@ nlth_case:
     args: []
 nodes:
   # Nodos de interés para extraer desplazamientos/derivas
-  # name: etiqueta libre; joint: ID del nudo en SAP2000; z: elevación (cm) mismas unidades definidas
-  - {name: "BASE", joint: "13", z: 0.00}
-  - {name: "L01",  joint: "14", z: 300.00}
-  - {name: "L02", joint: "15", z: 600.00}
-  - {name: "ROOF", joint: "32", z: 900.00}
+  # name: etiqueta libre; joint: ID del nudo en SAP2000; z: elevación (m)
+  - {name: "BASE", joint: "1", z: 0.00}
+  - {name: "L01",  joint: "2", z: 3.00}
+  - {name: "L02", joint: "3", z: 6.00}
+  - {name: "L03", joint: "4", z: 9.00}
+  - {name: "L04", joint: "5", z: 12.00}
+  - {name: "L05",  joint: "6", z: 15.00}
+  - {name: "L06", joint: "7", z: 18.00}
+  - {name: "L07", joint: "8", z: 21.00}
+  - {name: "L08",  joint: "9", z: 24.00}
+  - {name: "L09", joint: "10", z: 27.00}
+  - {name: "ROOF", joint: "11", z: 30.00}

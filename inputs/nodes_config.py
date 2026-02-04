@@ -28,6 +28,9 @@ def load_nodes_config(path: str):
         raise ValueError("settings.yaml debe incluir case_name")
 
     output_time_step = float(data.get("output_time_step", 0.05))
+    overwrite_db = bool(data.get("overwrite_db", False))
+    output_units = data.get("output_units", "cm")
+    accel_in_g = bool(data.get("accel_in_g", True))
 
     nlth_case = data.get("nlth_case", {})
     if nlth_case is None:
@@ -37,10 +40,12 @@ def load_nodes_config(path: str):
 
     nlth_case_config = {
         "apply_parameters": bool(nlth_case.get("apply_parameters", True)),
+        "p_delta": bool(nlth_case.get("p_delta", True)),
         "damping": nlth_case.get("damping"),
         "time_integration": nlth_case.get("time_integration"),
         "nonlinear_parameters": nlth_case.get("nonlinear_parameters"),
         "initial_conditions": nlth_case.get("initial_conditions"),
+        "initial_case": nlth_case.get("initial_case", "NL DL+0.25LL"),
     }
 
     nodes = data.get("nodes", [])
@@ -63,4 +68,13 @@ def load_nodes_config(path: str):
             raise ValueError(f"Node sin z: {name}")
         specs.append(NodeSpec(name=name, joint=joint, z=float(entry["z"])))
 
-    return str(case_name), str(model_path), output_time_step, specs, nlth_case_config
+    return (
+        str(case_name),
+        str(model_path),
+        output_time_step,
+        specs,
+        nlth_case_config,
+        overwrite_db,
+        output_units,
+        accel_in_g,
+    )
