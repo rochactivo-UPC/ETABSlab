@@ -11,12 +11,13 @@ calcular drifts consecutivos y guardar resultados en SQLite.
 
 ## Configuracion
 
-Archivo unico: `config/nodes.yaml`
+Archivo unico: `config/settings.yaml`
 
 Ejemplo:
 ```
 model_path: "C:/Users/rocha/Desktop/SAP2000 test/test.sdb"
 case_name: "NLTH_BATCH"
+output_time_step: 0.05
 nodes:
   - {name: "BASE", joint: "13", z: 0.00}
   - {name: "L01", joint: "14", z: 3.66}
@@ -32,6 +33,32 @@ nodes:
   - `python scripts/run_nlth_batch.py`
 - Inspeccionar SQLite:
   - `python scripts/tests/inspect_db.py`
+
+## Ejecutable (Windows)
+
+Para generar un exe fuera del repo (sin ensuciar la carpeta):
+
+1) Instalar PyInstaller:
+```
+pip install pyinstaller
+```
+
+2) Construir el exe usando el script:
+```
+.\build.ps1
+```
+
+Salida por defecto:
+`C:\Users\rocha\Documents\ETABSlab_exe\dist\etabslab_batch.exe`
+
+Cambiar la ruta de salida:
+```
+.\build.ps1 -OutRoot "D:\ETABSlab_exe"
+```
+
+Notas:
+- La PC destino debe tener SAP2000 instalado y activo (COM/OAPI).
+- Copiar junto al exe los archivos necesarios (ej. `config/settings.yaml`, `results/catalog.csv`, datos de entrada).
 
 ## Persistencia (SQLite)
 
@@ -59,6 +86,7 @@ Scripts en `scripts/tests/`:
 - `ret=27` en `GetNameList`: modelo no cargado o API no lista.
 - `ret=2` en `JointDispl`: el joint o el caso no existen, o no hay resultados.
 - Si el modelo esta bloqueado: se permite lectura con `allow_locked=True`.
+- El numero de pasos de salida se calcula como `duracion / output_time_step`.
 
 ## Estructura
 

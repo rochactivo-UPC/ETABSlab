@@ -1,4 +1,7 @@
 from pathlib import Path
+import logging
+import traceback
+import sys
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -24,8 +27,25 @@ def _open_model(sap_model, model_path: str):
 
 
 def main():
-    config_path = Path("config").resolve() / "nodes.yaml"
-    case_name, model_path, _nodes = load_nodes_config(config_path)
+    if getattr(sys, "frozen", False):
+        base_dir = Path(sys.executable).resolve().parent
+    else:
+        base_dir = Path(__file__).resolve().parents[1]
+
+    logs_dir = (base_dir / "logs").resolve()
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    log_path = logs_dir / "run_nlth_batch.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s | %(levelname)s | %(message)s",
+        handlers=[
+            logging.FileHandler(log_path, encoding="utf-8"),
+            logging.StreamHandler(),
+        ],
+    )
+    logging.info("Iniciando run_nlth_batch")
+    config_path = (base_dir / "config" / "settings.yaml").resolve()
+    case_name, model_path, _output_time_step, _nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(config_path)
     target_case = CASE_NAME or case_name
     target_model_path = MODEL_PATH or model_path
 
@@ -34,14 +54,22 @@ def main():
         _open_model(sap_model, target_model_path)
     check_model_loaded_and_unlocked(sap_model, target_model_path, allow_locked=True)
 
-    catalog_csv = Path("results").resolve() / "catalog.csv"
-    run_batch_from_catalog(
-        sap_model,
-        catalog_csv,
-        case_name=target_case,
-        overwrite_functions=True,
-        resume=True
-    )
+    catalog_csv = (base_dir / "results" / "catalog.csv").resolve()
+    try:
+        run_batch_from_catalog(
+            sap_model,
+            catalog_csv,
+            case_name=target_case,
+            overwrite_functions=True,
+            resume=False,
+            overwrite_results=True,
+            base_dir=base_dir,
+        )
+        logging.info("Batch finalizado correctamente")
+    except Exception:
+        logging.error("Error en ejecución del batch")
+        logging.error(traceback.format_exc())
+        raise
 
 
 if __name__ == "__main__":

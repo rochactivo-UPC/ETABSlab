@@ -116,8 +116,11 @@ def get_joint_displ(sap_model, joint: str, validate_joint_name=False) -> dict:
     }
 
 
-def get_node_max_displacements(sap_model, nodes, validate_joint_name=False):
+def get_node_displacements_with_histories(
+    sap_model, nodes, validate_joint_name=False
+):
     rows = []
+    histories = []
     for node in nodes:
         disp = get_joint_displ(
             sap_model,
@@ -126,6 +129,7 @@ def get_node_max_displacements(sap_model, nodes, validate_joint_name=False):
         )
         u1 = disp["u1"]
         u2 = disp["u2"]
+        step_num = disp.get("step_num", [])
         if not u1 or not u2:
             raise RuntimeError(f"JointDispl sin U1/U2 para {node.joint}")
 
@@ -133,6 +137,25 @@ def get_node_max_displacements(sap_model, nodes, validate_joint_name=False):
         u1_min = min(u1)
         u2_max = max(u2)
         u2_min = min(u2)
+        r_vals = [math.hypot(float(u1_i), float(u2_i)) for u1_i, u2_i in zip(u1, u2)]
+        r_max = max(r_vals)
+        r_min = min(r_vals)
+
+        if step_num and len(step_num) == len(u1):
+            t = list(step_num)
+        else:
+            t = list(range(len(u1)))
+
+        histories.append(
+            {
+                "name": node.name,
+                "joint": node.joint,
+                "z": float(node.z),
+                "t": list(t),
+                "u1": list(u1),
+                "u2": list(u2),
+            }
+        )
 
         rows.append(
             {
@@ -143,9 +166,30 @@ def get_node_max_displacements(sap_model, nodes, validate_joint_name=False):
                 "u1_min": float(u1_min),
                 "u2_max": float(u2_max),
                 "u2_min": float(u2_min),
+                "r_max": float(r_max),
+                "r_min": float(r_min),
             }
         )
 
-    return pd.DataFrame(
-        rows, columns=["name", "joint", "z", "u1_max", "u1_min", "u2_max", "u2_min"]
+    df = pd.DataFrame(
+        rows,
+        columns=[
+            "name",
+            "joint",
+            "z",
+            "u1_max",
+            "u1_min",
+            "u2_max",
+            "u2_min",
+            "r_max",
+            "r_min",
+        ],
     )
+    return df, histories
+
+
+def get_node_max_displacements(sap_model, nodes, validate_joint_name=False):
+    df, _histories = get_node_displacements_with_histories(
+        sap_model, nodes, validate_joint_name=validate_joint_name
+    )
+    return df

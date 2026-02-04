@@ -24,8 +24,8 @@ def _length(value):
 
 
 def main():
-    config_path = Path("config").resolve() / "nodes.yaml"
-    case_name, model_path, nodes = load_nodes_config(config_path)
+    config_path = Path("config").resolve() / "settings.yaml"
+    case_name, model_path, _output_time_step, nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(config_path)
 
     target_case = CASE_NAME or case_name
     target_joint = JOINT_NAME or nodes[0].joint

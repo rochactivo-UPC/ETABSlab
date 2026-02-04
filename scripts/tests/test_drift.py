@@ -9,7 +9,7 @@ from inputs.nodes_config import load_nodes_config
 from solvers.sap2000.connect import Sap2000Connection
 from solvers.sap2000.model_checks import check_model_loaded_and_unlocked
 from solvers.sap2000.results_setup import select_case_for_output
-from solvers.sap2000.edp_nodes import get_node_max_displacements
+from solvers.sap2000.edp_nodes import get_node_displacements_with_histories
 from solvers.sap2000.edp_drift import compute_consecutive_drifts
 
 
@@ -18,8 +18,8 @@ CASE_NAME = None
 
 
 def main():
-    config_path = Path("config").resolve() / "nodes.yaml"
-    case_name, model_path, nodes = load_nodes_config(config_path)
+    config_path = Path("config").resolve() / "settings.yaml"
+    case_name, model_path, _output_time_step, nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(config_path)
     target_case = CASE_NAME or case_name
     target_model_path = MODEL_PATH or model_path
 
@@ -31,8 +31,8 @@ def main():
     check_model_loaded_and_unlocked(sap_model, target_model_path, allow_locked=True)
     select_case_for_output(sap_model, target_case)
 
-    df_nodes = get_node_max_displacements(sap_model, nodes)
-    df_drifts, summary = compute_consecutive_drifts(df_nodes)
+    df_nodes, node_histories = get_node_displacements_with_histories(sap_model, nodes)
+    df_drifts, summary = compute_consecutive_drifts(node_histories=node_histories)
 
     print(df_nodes)
     print(df_drifts)

@@ -56,6 +56,7 @@ def build_catalog(mat_files: list[Path], out_dir: Path, units="m/s2"):
         )
 
     out_dir = Path(out_dir).resolve()
+    project_root = out_dir.parents[1]
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -128,11 +129,11 @@ def build_catalog(mat_files: list[Path], out_dir: Path, units="m/s2"):
         rows.append(
             {
                 "record_id": record_id,
-                "mat_path": str(mat_path),
+                "mat_path": str(mat_path.relative_to(project_root)),
                 "x_key": x_key,
                 "y_key": y_key,
-                "x_txt_path": str(x_txt_path.resolve()),
-                "y_txt_path": str(y_txt_path.resolve()),
+                "x_txt_path": str(x_txt_path.relative_to(project_root)),
+                "y_txt_path": str(y_txt_path.relative_to(project_root)),
                 "dt": dt_val,
                 "n_steps": n_steps,
                 "units": units,
