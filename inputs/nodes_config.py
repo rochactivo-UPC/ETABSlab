@@ -48,6 +48,21 @@ def load_nodes_config(path: str):
         "initial_case": nlth_case.get("initial_case", "NL DL+0.25LL"),
     }
 
+    use_ping_pong = bool(data.get("use_ping_pong", False))
+    ping_pong_cases = data.get("ping_pong_cases", ["NLTH_A", "NLTH_B"])
+    if not isinstance(ping_pong_cases, list) or len(ping_pong_cases) != 2:
+        raise ValueError("settings.yaml: ping_pong_cases debe ser lista de 2 nombres")
+
+    checkpoint_every = int(data.get("checkpoint_every", 10))
+    clear_results_after_edp = bool(data.get("clear_results_after_edp", False))
+    initial_gravity_case = str(data.get("initial_gravity_case", "NL DL+0.25LL"))
+    energy_link = data.get("energy_link", "")
+    energy_component = data.get("energy_component", "U1_P")
+    energy_point_elm = data.get("energy_point_elm", "I-End")
+    energy_mode = str(data.get("energy_mode", "signed"))
+    if energy_link is None:
+        energy_link = ""
+
     nodes = data.get("nodes", [])
     if not isinstance(nodes, list) or not nodes:
         raise ValueError("settings.yaml debe incluir una lista no vacia de nodes")
@@ -77,4 +92,13 @@ def load_nodes_config(path: str):
         overwrite_db,
         output_units,
         accel_in_g,
+        use_ping_pong,
+        ping_pong_cases,
+        checkpoint_every,
+        clear_results_after_edp,
+        initial_gravity_case,
+        str(energy_link),
+        str(energy_component),
+        str(energy_point_elm),
+        str(energy_mode),
     )

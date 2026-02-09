@@ -22,6 +22,7 @@ def create_or_update_nlth_case(
     time_integration=None,
     nonlinear_parameters=None,
     initial_conditions=None,
+    initial_case=None,
 ):
     """
     Crea o actualiza un caso de análisis Direct Time History No Lineal.
@@ -47,6 +48,8 @@ def create_or_update_nlth_case(
         Máximo de iteraciones por paso.
     apply_parameters : bool
         Si True, aplica damping, time integration, nonlinear parameters e initial conditions.
+    initial_case : str | None
+        Caso inicial para condiciones iniciales (blank/None = cero).
     """
     def _parse_ret_tuple(result):
         if not isinstance(result, (list, tuple)):
@@ -313,6 +316,17 @@ def create_or_update_nlth_case(
         raise RuntimeError(
             f"Error configurando output time step en el caso {case_name}"
         )
+
+    if initial_case is not None:
+        init_name = "" if not str(initial_case).strip() else str(initial_case)
+        method = getattr(sap_model.LoadCases.DirHistNonlinear, "SetInitialCase", None)
+        if method is None:
+            raise RuntimeError("Metodo SetInitialCase no disponible en SAP2000")
+        ret = method(case_name, init_name)
+        if ret != 0:
+            raise RuntimeError(
+                f"Error configurando initial case en {case_name} (ret={ret})"
+            )
 
     if preserve_params: # TODO no tocar los parámetros si ya hay un caso existente, simplificar esto
         # Restore any preserved parameters after updates.

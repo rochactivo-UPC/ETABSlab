@@ -67,7 +67,7 @@ def _load_first_catalog_row(base_dir: Path):
 def main():
     base_dir = Path(__file__).resolve().parents[2]
     config_path = base_dir / "config" / "settings.yaml"
-    case_name, model_path, output_time_step, _nodes, nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(
+    case_name, model_path, output_time_step, _nodes, nlth_case_config, _overwrite_db, _output_units, _accel_in_g, *_rest = load_nodes_config(
         config_path
     )
     target_case = CASE_NAME or case_name
