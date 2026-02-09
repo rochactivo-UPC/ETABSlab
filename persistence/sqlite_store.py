@@ -78,6 +78,23 @@ def init_db(db_path):
             )
             """
         )
+        cursor.execute(
+            """
+            CREATE TABLE IF NOT EXISTS link_energy (
+                run_id INTEGER,
+                link_name TEXT,
+                component TEXT,
+                point_elm TEXT,
+                energy_max REAL,
+                energy_min REAL,
+                energy_final REAL,
+                energy_abs_max REAL,
+                FOREIGN KEY(run_id) REFERENCES runs(run_id)
+            )
+            """
+        )
+        _ensure_column(cursor, "link_energy", "component", "TEXT")
+        _ensure_column(cursor, "link_energy", "point_elm", "TEXT")
         _ensure_column(cursor, "node_disp", "u1_min", "REAL")
         _ensure_column(cursor, "node_disp", "u2_min", "REAL")
         _ensure_column(cursor, "node_disp", "r_min", "REAL")
@@ -230,6 +247,35 @@ def insert_summary(db_path, run_id, summary):
                 summary.get("segment_max_u2"),
                 summary.get("max_drift_r"),
                 summary.get("segment_max_r"),
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def insert_link_energy(db_path, run_id, link_name, component, point_elm, energy):
+    if not energy:
+        return
+    conn = _connect(db_path)
+    try:
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            INSERT INTO link_energy (
+                run_id, link_name, component, point_elm, energy_max, energy_min, energy_final, energy_abs_max
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                str(link_name),
+                str(component),
+                str(point_elm),
+                energy.get("max"),
+                energy.get("min"),
+                energy.get("final"),
+                energy.get("abs_max"),
             ),
         )
         conn.commit()

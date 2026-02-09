@@ -1,5 +1,14 @@
 model_path: "C:/Users/rocha/Desktop/SAP2000 test/test.sdb"  # Ruta al .sdb de SAP2000
 case_name: "NLTH_BATCH"  # Nombre del caso NLTH a crear/actualizar
+use_ping_pong: true  # true = alterna NLTH_A/NLTH_B y acumula daño; false = caso único
+ping_pong_cases: ["NLTH_A", "NLTH_B"]  # nombres de los dos casos ping-pong
+initial_gravity_case: "NL DL+0.25LL"  # caso inicial del primer sismo en modo ping-pong
+checkpoint_every: 10  # guardar checkpoint cada N sismos
+clear_results_after_edp: false  # borrar resultados SAP2000 tras guardar EDPs
+energy_link: "4"  # nombre del link para extraer energía disipada
+energy_component: "U1_P"  # componente para energia: U1_P, U2_V2, U3_V3, R1_T, R2_M2, R3_M3
+energy_point_elm: "I-End"  # filtra fuerza por PointElm: I-End, J-End, o vacío para no filtrar
+energy_mode: "signed"  # signed, abs o positive para la integral de energia
 output_time_step: 0.05  # Paso de salida para resultados (s)
 output_units: "cm"  # unidades de salida (default: cm). Usa "cm" o un enum SAP2000 (kN_cm_C, Ton_cm_C, etc.)
 accel_in_g: true  # true = acelerogramas en g; aplica factor segun output_units

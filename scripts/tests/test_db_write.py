@@ -28,7 +28,7 @@ def main():
     init_db(db_path)
 
     config_path = Path("config").resolve() / "settings.yaml"
-    case_name, model_path, _output_time_step, nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g = load_nodes_config(config_path)
+    case_name, model_path, _output_time_step, nodes, _nlth_case_config, _overwrite_db, _output_units, _accel_in_g, *_rest = load_nodes_config(config_path)
     target_case = CASE_NAME or case_name
     target_model_path = MODEL_PATH or model_path
 
