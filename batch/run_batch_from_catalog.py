@@ -94,6 +94,7 @@ def run_batch_from_catalog(
     resume=True,
     overwrite_results=True,
     base_dir=None,
+    settings_path=None,
 ):
     print("[batch] Iniciando run_batch_from_catalog")
     catalog_path = Path(catalog_csv).resolve()
@@ -101,7 +102,8 @@ def run_batch_from_catalog(
         raise FileNotFoundError(catalog_path)
 
     print(f"[batch] Catalogo: {catalog_path}")
-    config_path = Path("config").resolve() / "settings.yaml"
+    root_dir = Path(base_dir).resolve() if base_dir is not None else catalog_path.parent.parent.resolve()
+    config_path = Path(settings_path).resolve() if settings_path is not None else (root_dir / "config" / "settings.yaml").resolve()
     print(f"[batch] Config nodes: {config_path}")
     (
         _case_name_cfg,
@@ -123,7 +125,7 @@ def run_batch_from_catalog(
         energy_point_elm,
         energy_mode,
     ) = load_nodes_config(config_path)
-    db_path = Path("results").resolve() / "edp.sqlite"
+    db_path = (root_dir / "results" / "edp.sqlite").resolve()
     print(f"[batch] DB: {db_path}")
     if overwrite_db and db_path.exists():
         print(f"[batch] Overwrite DB: eliminando {db_path}")
@@ -136,7 +138,7 @@ def run_batch_from_catalog(
 
     catalog = pd.read_csv(catalog_path).reset_index(drop=True)
     print(f"[batch] Registros en catalogo: {len(catalog.index)}")
-    results_path = Path("results").resolve() / "batch_results.csv"
+    results_path = (root_dir / "results" / "batch_results.csv").resolve()
     if overwrite_results and results_path.exists():
         print(f"[batch] Eliminando resultados previos: {results_path}")
         results_path.unlink()
@@ -153,7 +155,7 @@ def run_batch_from_catalog(
     results_rows = []
     total = len(catalog.index)
 
-    checkpoint_path = Path("results").resolve() / "checkpoint.json"
+    checkpoint_path = (root_dir / "results" / "checkpoint.json").resolve()
     checkpoint = _load_checkpoint(checkpoint_path) if resume else {}
     start_index = int(checkpoint.get("last_index", -1)) + 1 if checkpoint else 0
     last_finished_case = str(checkpoint.get("last_finished_case", "")) if checkpoint else ""

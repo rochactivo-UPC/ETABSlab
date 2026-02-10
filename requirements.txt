@@ -4,3 +4,4 @@ scipy
 pandas
 pytest
 PyYAML
+PySide6
