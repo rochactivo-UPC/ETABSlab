@@ -118,6 +118,7 @@ def run_batch_from_catalog(
         clear_results_after_edp,
         initial_gravity_case,
         energy_link,
+        enable_link_energy,
         energy_component,
         energy_point_elm,
         energy_mode,
@@ -333,7 +334,7 @@ def run_batch_from_catalog(
                 insert_drifts(db_path, run_id, df_drifts)
                 insert_summary(db_path, run_id, summary)
 
-                if energy_link:
+                if enable_link_energy and energy_link:
                     print(f"  [batch] Extrayendo energia link: {energy_link}")
                     energy = get_link_energy(
                         sap_model,
@@ -353,6 +354,8 @@ def run_batch_from_catalog(
                             energy_point_elm,
                             energy,
                         )
+                elif not enable_link_energy:
+                    print("  [batch] Energia link desactivada por config")
             except Exception as exc:
                 print(f"  Error extrayendo EDPs: {exc}")
 

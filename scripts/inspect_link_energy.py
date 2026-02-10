@@ -146,10 +146,15 @@ def main():
         _clear_results_after_edp,
         _initial_gravity_case,
         energy_link,
+        enable_link_energy,
         energy_component,
         energy_point_elm,
         _energy_mode,
     ) = load_nodes_config(config_path)
+
+    if not enable_link_energy:
+        print("[energy] enable_link_energy=false: se omite lectura de resultados de link.")
+        return
 
     if not energy_link:
         raise RuntimeError("energy_link vacio en settings.yaml")

@@ -60,6 +60,7 @@ def main():
         _clear_results_after_edp,
         _initial_gravity_case,
         _energy_link,
+        _enable_link_energy,
         _energy_component,
         _energy_point_elm,
         _energy_mode,

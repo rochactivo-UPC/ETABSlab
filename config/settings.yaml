@@ -6,6 +6,7 @@ initial_gravity_case: "NL DL+0.25LL"  # caso inicial del primer sismo en modo pi
 checkpoint_every: 10  # guardar checkpoint cada N sismos
 clear_results_after_edp: false  # borrar resultados SAP2000 tras guardar EDPs
 energy_link: "4"  # nombre del link para extraer energía disipada
+enable_link_energy: false  # true = calcula energía de link en batch; false = omite ese cálculo
 energy_component: "U1_P"  # componente para energia: U1_P, U2_V2, U3_V3, R1_T, R2_M2, R3_M3
 energy_point_elm: "I-End"  # filtra fuerza por PointElm: I-End, J-End, o vacío para no filtrar
 energy_mode: "signed"  # signed, abs o positive para la integral de energia
