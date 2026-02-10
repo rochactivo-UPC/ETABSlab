@@ -1,6 +1,7 @@
 from pathlib import Path
 import sys
 import json
+import builtins
 from datetime import datetime
 
 import pandas as pd
@@ -27,6 +28,11 @@ from persistence.sqlite_store import (
     insert_summary,
     insert_link_energy,
 )
+
+
+def print(*args, **kwargs):  # noqa: A001
+    kwargs.setdefault("flush", True)
+    return builtins.print(*args, **kwargs)
 
 
 def _load_existing_results(results_path: Path) -> pd.DataFrame:
@@ -95,6 +101,8 @@ def run_batch_from_catalog(
     overwrite_results=True,
     base_dir=None,
     settings_path=None,
+    results_dir=None,
+    normalized_dir=None,
 ):
     print("[batch] Iniciando run_batch_from_catalog")
     catalog_path = Path(catalog_csv).resolve()
@@ -104,6 +112,9 @@ def run_batch_from_catalog(
     print(f"[batch] Catalogo: {catalog_path}")
     root_dir = Path(base_dir).resolve() if base_dir is not None else catalog_path.parent.parent.resolve()
     config_path = Path(settings_path).resolve() if settings_path is not None else (root_dir / "config" / "settings.yaml").resolve()
+    results_root = Path(results_dir).resolve() if results_dir is not None else (root_dir / "results").resolve()
+    normalized_root = Path(normalized_dir).resolve() if normalized_dir is not None else (root_dir / "data" / "normalized").resolve()
+    results_root.mkdir(parents=True, exist_ok=True)
     print(f"[batch] Config nodes: {config_path}")
     (
         _case_name_cfg,
@@ -125,7 +136,7 @@ def run_batch_from_catalog(
         energy_point_elm,
         energy_mode,
     ) = load_nodes_config(config_path)
-    db_path = (root_dir / "results" / "edp.sqlite").resolve()
+    db_path = (results_root / "edp.sqlite").resolve()
     print(f"[batch] DB: {db_path}")
     if overwrite_db and db_path.exists():
         print(f"[batch] Overwrite DB: eliminando {db_path}")
@@ -138,7 +149,7 @@ def run_batch_from_catalog(
 
     catalog = pd.read_csv(catalog_path).reset_index(drop=True)
     print(f"[batch] Registros en catalogo: {len(catalog.index)}")
-    results_path = (root_dir / "results" / "batch_results.csv").resolve()
+    results_path = (results_root / "batch_results.csv").resolve()
     if overwrite_results and results_path.exists():
         print(f"[batch] Eliminando resultados previos: {results_path}")
         results_path.unlink()
@@ -155,7 +166,7 @@ def run_batch_from_catalog(
     results_rows = []
     total = len(catalog.index)
 
-    checkpoint_path = (root_dir / "results" / "checkpoint.json").resolve()
+    checkpoint_path = (results_root / "checkpoint.json").resolve()
     checkpoint = _load_checkpoint(checkpoint_path) if resume else {}
     start_index = int(checkpoint.get("last_index", -1)) + 1 if checkpoint else 0
     last_finished_case = str(checkpoint.get("last_finished_case", "")) if checkpoint else ""
@@ -180,14 +191,37 @@ def run_batch_from_catalog(
                 raise RuntimeError("Registro con preproceso fallido")
 
             def _resolve_path(path_value: str) -> Path:
-                raw = Path(path_value)
+                raw = Path(str(path_value).strip())
                 if raw.is_absolute():
+                    if raw.exists():
+                        return raw
+                    alt = (normalized_root / raw.name).resolve()
+                    if alt.exists():
+                        return alt
                     return raw
-                if base_dir is None:
-                    base = catalog_path.parent.parent
-                else:
-                    base = Path(base_dir)
-                return (base / raw).resolve()
+
+                base_candidates = [
+                    (Path(base_dir).resolve() if base_dir is not None else None),
+                    catalog_path.parent.resolve(),
+                    catalog_path.parent.parent.resolve(),
+                    results_root.resolve(),
+                    normalized_root.resolve(),
+                ]
+                for base in base_candidates:
+                    if base is None:
+                        continue
+                    candidate = (base / raw).resolve()
+                    if candidate.exists():
+                        return candidate
+
+                by_name = (normalized_root / raw.name).resolve()
+                if by_name.exists():
+                    return by_name
+
+                # Keep deterministic fallback for error reporting.
+                if base_dir is not None:
+                    return (Path(base_dir).resolve() / raw).resolve()
+                return (catalog_path.parent.resolve() / raw).resolve()
 
             x_txt = _resolve_path(row["x_txt_path"])
             y_txt = _resolve_path(row["y_txt_path"])

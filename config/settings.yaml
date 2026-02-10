@@ -1,3 +1,4 @@
+results_dir: C:\Users\rocha\Desktop\USMA 2026
 model_path: C:/Users/rocha/Desktop/SAP2000 test/test.sdb
 case_name: NLTH_BATCH
 use_ping_pong: false

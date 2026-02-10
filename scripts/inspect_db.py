@@ -1,5 +1,6 @@
 from pathlib import Path
 import sys
+import argparse
 
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -10,13 +11,24 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
-DB_PATH = None
-RUN_ID = None
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Inspecciona resultados SQLite de ETABSlab")
+    parser.add_argument("--db", dest="db_path", default=None, help="Ruta al archivo edp.sqlite")
+    parser.add_argument(
+        "--results-dir",
+        dest="results_dir",
+        default=None,
+        help="Carpeta de resultados donde se encuentra edp.sqlite",
+    )
+    parser.add_argument("--run-id", dest="run_id", type=int, default=None, help="Run ID especifico")
+    return parser.parse_args()
 
 
-def _get_db_path():
-    if DB_PATH:
-        return Path(DB_PATH).resolve()
+def _get_db_path(db_path: str | None = None, results_dir: str | None = None):
+    if db_path:
+        return Path(db_path).resolve()
+    if results_dir:
+        return Path(results_dir).resolve() / "edp.sqlite"
     return Path("results").resolve() / "edp.sqlite"
 
 
@@ -91,19 +103,20 @@ def _plot_drifts(df_drifts):
 
 
 def main():
-    db_path = _get_db_path()
+    args = _parse_args()
+    db_path = _get_db_path(db_path=args.db_path, results_dir=args.results_dir)
     if not db_path.exists():
         raise FileNotFoundError(db_path)
 
     with sqlite3.connect(str(db_path)) as conn:
         _print_counts(conn)
 
-        run_id = RUN_ID or _get_latest_run_id(conn)
+        run_id = args.run_id or _get_latest_run_id(conn)
         if run_id is None:
             print("No hay runs en la base.")
             return
 
-        if RUN_ID is None:
+        if args.run_id is None:
             df_nodes = _load_table(conn, "node_disp")
             df_drifts = _load_table(conn, "drifts")
             df_summary = _load_table(conn, "run_summary")

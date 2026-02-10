@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 import re
 import time
+import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta
 
@@ -57,6 +58,7 @@ class SettingsGui(QMainWindow):
         self._batch_started_at: float | None = None
         self._batch_total = 0
         self._batch_current = 0
+        self._raw_settings_data: dict = {}
 
         self.setWindowTitle("ETABSlab - Settings + Runner")
         icon_path = self.base_dir / "EQLab.ico"
@@ -114,6 +116,8 @@ class SettingsGui(QMainWindow):
         self.btn_post.clicked.connect(self.run_postprocess)
         self.btn_cancel.clicked.connect(self.cancel_process)
         self.btn_catalog_browse.clicked.connect(self._browse_catalog)
+        self.btn_results_dir_browse.clicked.connect(self._browse_results_dir)
+        self.btn_mat_dir_browse.clicked.connect(self._browse_mat_dir)
         self.btn_model_browse.clicked.connect(self._browse_model_sdb)
         self.node_count.valueChanged.connect(self._sync_node_rows)
         self.use_ping_pong.toggled.connect(self._update_ping_pong_enabled)
@@ -122,8 +126,38 @@ class SettingsGui(QMainWindow):
 
         self.load_settings()
 
-    def _default_catalog_from_settings(self) -> Path:
-        return self.settings_path.parent.parent / "results" / "catalog.csv"
+    def _project_root_from_settings_path(self) -> Path:
+        parent = self.settings_path.parent.resolve()
+        if parent.name.lower() == "config":
+            return parent.parent.resolve()
+        return parent
+
+    def _default_results_dir_from_settings(self) -> Path:
+        return self._project_root_from_settings_path() / "results"
+
+    def _default_mat_dir_from_settings(self) -> Path:
+        return self._project_root_from_settings_path() / "data" / "mat"
+
+    def _results_dir_path(self) -> Path:
+        raw = self.results_dir_path.text().strip()
+        if raw:
+            return Path(raw).resolve()
+        return self._default_results_dir_from_settings().resolve()
+
+    def _default_catalog_from_results_dir(self) -> Path:
+        return self._results_dir_path() / "catalog.csv"
+
+    def _try_resolve_settings_from_results_dir(self) -> Path | None:
+        results_dir = self._results_dir_path()
+        candidates = [
+            (results_dir / "settings.yaml").resolve(),
+            (results_dir / "config" / "settings.yaml").resolve(),
+            (results_dir.parent / "config" / "settings.yaml").resolve(),
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+        return None
 
     def _build_form(self):
         cols_widget = QWidget()
@@ -176,7 +210,25 @@ class SettingsGui(QMainWindow):
 
         run_group = QGroupBox("Ejecucion")
         run_layout = QFormLayout(run_group)
-        self.catalog_path = QLineEdit(str(self._default_catalog_from_settings()))
+        self.results_dir_path = QLineEdit(str(self._default_results_dir_from_settings()))
+        self.btn_results_dir_browse = QPushButton("Seleccionar carpeta")
+        results_row = QHBoxLayout()
+        results_row.addWidget(self.results_dir_path)
+        results_row.addWidget(self.btn_results_dir_browse)
+        results_row_widget = QWidget()
+        results_row_widget.setLayout(results_row)
+        run_layout.addRow("Carpeta resultados", results_row_widget)
+
+        self.mat_dir_path = QLineEdit(str(self._default_mat_dir_from_settings()))
+        self.btn_mat_dir_browse = QPushButton("Seleccionar carpeta")
+        mat_row = QHBoxLayout()
+        mat_row.addWidget(self.mat_dir_path)
+        mat_row.addWidget(self.btn_mat_dir_browse)
+        mat_row_widget = QWidget()
+        mat_row_widget.setLayout(mat_row)
+        run_layout.addRow("Carpeta .mat", mat_row_widget)
+
+        self.catalog_path = QLineEdit(str(self._default_catalog_from_results_dir()))
         self.btn_catalog_browse = QPushButton("Seleccionar catalogo")
         row = QHBoxLayout()
         row.addWidget(self.catalog_path)
@@ -392,11 +444,32 @@ class SettingsGui(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Seleccionar catalogo CSV",
-            str(self.base_dir / "results"),
+            str(self._results_dir_path()),
             "CSV (*.csv)",
         )
         if path:
             self.catalog_path.setText(path)
+
+    def _browse_results_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Seleccionar carpeta de resultados",
+            str(self._results_dir_path()),
+        )
+        if path:
+            self.results_dir_path.setText(str(Path(path).resolve()))
+            current_catalog = self.catalog_path.text().strip()
+            if (not current_catalog) or (not Path(current_catalog).exists()):
+                self.catalog_path.setText(str(self._default_catalog_from_results_dir()))
+
+    def _browse_mat_dir(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Seleccionar carpeta de .mat",
+            str(Path(self.mat_dir_path.text().strip() or self._default_mat_dir_from_settings()).resolve()),
+        )
+        if path:
+            self.mat_dir_path.setText(str(Path(path).resolve()))
 
     def _browse_model_sdb(self):
         path, _ = QFileDialog.getOpenFileName(
@@ -418,7 +491,11 @@ class SettingsGui(QMainWindow):
         if path:
             self.settings_path_edit.setText(path)
             self.settings_path = Path(path).resolve()
-            default_catalog = self._default_catalog_from_settings().resolve()
+            default_results_dir = self._default_results_dir_from_settings().resolve()
+            current_results_dir = self.results_dir_path.text().strip()
+            if (not current_results_dir) or (not Path(current_results_dir).exists()):
+                self.results_dir_path.setText(str(default_results_dir))
+            default_catalog = self._default_catalog_from_results_dir().resolve()
             current_catalog = self.catalog_path.text().strip()
             if (not current_catalog) or (not Path(current_catalog).exists()):
                 self.catalog_path.setText(str(default_catalog))
@@ -480,16 +557,42 @@ class SettingsGui(QMainWindow):
         current = self.settings_path_edit.text().strip()
         if current:
             self.settings_path = Path(current).resolve()
-        self.settings_path_edit.setText(str(self.settings_path))
-        default_catalog = self._default_catalog_from_settings().resolve()
+        default_results_dir = self._default_results_dir_from_settings().resolve()
+        current_results_dir = self.results_dir_path.text().strip()
+        if (not current_results_dir) or (not Path(current_results_dir).exists()):
+            self.results_dir_path.setText(str(default_results_dir))
+        default_mat_dir = self._default_mat_dir_from_settings().resolve()
+        current_mat_dir = self.mat_dir_path.text().strip()
+        if (not current_mat_dir) or (not Path(current_mat_dir).exists()):
+            self.mat_dir_path.setText(str(default_mat_dir))
+        default_catalog = self._default_catalog_from_results_dir().resolve()
         current_catalog = self.catalog_path.text().strip()
         if (not current_catalog) or (not Path(current_catalog).exists()):
             self.catalog_path.setText(str(default_catalog))
         if not self.settings_path.exists():
-            QMessageBox.critical(self, "Error", f"No existe {self.settings_path}")
+            resolved = self._try_resolve_settings_from_results_dir()
+            if resolved is not None:
+                self.settings_path = resolved
+        self.settings_path_edit.setText(str(self.settings_path))
+        if not self.settings_path.exists():
+            self._append_log(f"[gui] settings.yaml no encontrado: {self.settings_path}")
             return
         with self.settings_path.open("r", encoding="utf-8") as handle:
             data = yaml.safe_load(handle) or {}
+        self._raw_settings_data = dict(data)
+
+        configured_results_dir = str(data.get("results_dir", "")).strip()
+        if configured_results_dir:
+            self.results_dir_path.setText(str(Path(configured_results_dir).resolve()))
+            current_catalog = self.catalog_path.text().strip()
+            if (not current_catalog) or (not Path(current_catalog).exists()):
+                self.catalog_path.setText(str(self._default_catalog_from_results_dir()))
+        configured_mat_dir = str(data.get("mat_dir", "")).strip()
+        if configured_mat_dir:
+            self.mat_dir_path.setText(str(Path(configured_mat_dir).resolve()))
+        configured_catalog_path = str(data.get("catalog_path", "")).strip()
+        if configured_catalog_path:
+            self.catalog_path.setText(str(Path(configured_catalog_path).resolve()))
 
         self.model_path.setText(str(data.get("model_path", "")))
         self.case_name.setText(str(data.get("case_name", "")))
@@ -573,6 +676,9 @@ class SettingsGui(QMainWindow):
 
     def _build_settings_dict(self):
         return {
+            "results_dir": self.results_dir_path.text().strip(),
+            "mat_dir": self.mat_dir_path.text().strip(),
+            "catalog_path": self.catalog_path.text().strip(),
             "model_path": self.model_path.text().strip(),
             "case_name": self.case_name.text().strip(),
             "use_ping_pong": self.use_ping_pong.isChecked(),
@@ -626,7 +732,8 @@ class SettingsGui(QMainWindow):
 
     def save_settings(self):
         try:
-            data = self._build_settings_dict()
+            data = dict(self._raw_settings_data)
+            data.update(self._build_settings_dict())
             self.settings_path.parent.mkdir(parents=True, exist_ok=True)
             with self.settings_path.open("w", encoding="utf-8") as handle:
                 yaml.safe_dump(data, handle, sort_keys=False, allow_unicode=False)
@@ -649,6 +756,8 @@ class SettingsGui(QMainWindow):
         script_name = Path(script_path).name.lower()
         mapping = {
             "run_nlth_batch.py": "etabslab_batch.exe",
+            "preprocess_mat_catalog.py": "etabslab_preprocess.exe",
+            "inspect_db.py": "etabslab_inspect.exe",
         }
         exe_name = mapping.get(script_name)
         if not exe_name:
@@ -684,6 +793,17 @@ class SettingsGui(QMainWindow):
         frozen_target = None
         if getattr(sys, "frozen", False) and args:
             frozen_target = self._frozen_executable_for_script(args[0])
+            if frozen_target is None:
+                script_name = Path(args[0]).name
+                QMessageBox.critical(
+                    self,
+                    "Ejecutable faltante",
+                    f"No existe ejecutable empaquetado para {script_name}. "
+                    "Recompila incluyendo ese script.",
+                )
+                self.process = None
+                self._set_running_state(False)
+                return
 
         if frozen_target:
             self.process.setProgram(frozen_target)
@@ -701,12 +821,25 @@ class SettingsGui(QMainWindow):
         self.process.start()
 
     def run_preprocess(self):
-        self._run_command([str(self.runtime_dir / "scripts" / "preprocess_mat_catalog.py")])
+        self._run_command(
+            [
+                str(self.runtime_dir / "scripts" / "preprocess_mat_catalog.py"),
+                "--settings",
+                str(self.settings_path),
+            ]
+        )
 
     def run_batch(self):
         catalog = self.catalog_path.text().strip()
         if not catalog:
             QMessageBox.warning(self, "Catalogo", "Debes indicar un catalogo CSV.")
+            return
+        if not self.settings_path.exists():
+            QMessageBox.warning(self, "Settings", f"No existe settings.yaml: {self.settings_path}")
+            return
+        results_dir = self.results_dir_path.text().strip()
+        if not results_dir:
+            QMessageBox.warning(self, "Resultados", "Debes indicar carpeta de resultados.")
             return
         self._run_command(
             [
@@ -715,16 +848,45 @@ class SettingsGui(QMainWindow):
                 str(Path(catalog).resolve()),
                 "--settings",
                 str(self.settings_path),
+                "--results-dir",
+                str(Path(results_dir).resolve()),
             ]
         )
 
     def run_postprocess(self):
-        self._run_command([str(self.runtime_dir / "scripts" / "inspect_db.py")])
+        results_dir = self.results_dir_path.text().strip()
+        if not results_dir:
+            QMessageBox.warning(self, "Resultados", "Debes indicar carpeta de resultados.")
+            return
+        self._run_command(
+            [
+                str(self.runtime_dir / "scripts" / "inspect_db.py"),
+                "--results-dir",
+                str(Path(results_dir).resolve()),
+            ]
+        )
 
     def cancel_process(self):
         if self.process is not None:
             self._append_log("[gui] Cancelando proceso...")
-            self.process.kill()
+            pid = int(self.process.processId())
+            if sys.platform.startswith("win") and pid > 0:
+                try:
+                    result = subprocess.run(
+                        ["taskkill", "/PID", str(pid), "/T", "/F"],
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
+                    )
+                    if result.returncode == 0:
+                        self._append_log(f"[gui] taskkill OK para PID {pid}")
+                    else:
+                        stderr = (result.stderr or "").strip()
+                        self._append_log(f"[gui] taskkill fallo ({result.returncode}): {stderr}")
+                except Exception as exc:
+                    self._append_log(f"[gui] taskkill error: {exc}")
+            if self.process.state() != QProcess.ProcessState.NotRunning:
+                self.process.kill()
 
     def _on_stdout(self):
         if self.process is None:

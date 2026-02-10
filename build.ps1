@@ -16,6 +16,18 @@ pyinstaller --onefile --name etabslab_batch `
   --specpath $spec `
   scripts\run_nlth_batch.py
 
+pyinstaller --onefile --name etabslab_preprocess `
+  --distpath $dist `
+  --workpath $build `
+  --specpath $spec `
+  scripts\preprocess_mat_catalog.py
+
+pyinstaller --onefile --name etabslab_inspect `
+  --distpath $dist `
+  --workpath $build `
+  --specpath $spec `
+  scripts\inspect_db.py
+
 pyinstaller --onefile --windowed --name etabslab_gui `
   --icon EQLab.ico `
   --distpath $dist `
