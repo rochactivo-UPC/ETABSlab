@@ -49,14 +49,19 @@ def _load_mat_once(mat_path: Path) -> dict:
     return loadmat(mat_path)
 
 
-def build_catalog(mat_files: list[Path], out_dir: Path, units="m/s2"):
+def build_catalog(
+    mat_files: list[Path],
+    out_dir: Path,
+    units="m/s2",
+    catalog_path: Path | None = None,
+    path_mode: str = "name",
+):
     if pd is None:
         raise ImportError(
             f"Falta pandas. Instala con: pip install pandas ({_PANDAS_IMPORT_ERROR})"
         )
 
     out_dir = Path(out_dir).resolve()
-    project_root = out_dir.parents[1]
     out_dir.mkdir(parents=True, exist_ok=True)
 
     rows = []
@@ -126,14 +131,23 @@ def build_catalog(mat_files: list[Path], out_dir: Path, units="m/s2"):
             error = str(exc)
             print(f"  Error: {error}")
 
+        if path_mode == "name":
+            mat_path_value = mat_path.name
+            x_path_value = x_txt_path.name
+            y_path_value = y_txt_path.name
+        else:
+            mat_path_value = str(mat_path)
+            x_path_value = str(x_txt_path)
+            y_path_value = str(y_txt_path)
+
         rows.append(
             {
                 "record_id": record_id,
-                "mat_path": str(mat_path.relative_to(project_root)),
+                "mat_path": mat_path_value,
                 "x_key": x_key,
                 "y_key": y_key,
-                "x_txt_path": str(x_txt_path.relative_to(project_root)),
-                "y_txt_path": str(y_txt_path.relative_to(project_root)),
+                "x_txt_path": x_path_value,
+                "y_txt_path": y_path_value,
                 "dt": dt_val,
                 "n_steps": n_steps,
                 "units": units,
@@ -145,9 +159,12 @@ def build_catalog(mat_files: list[Path], out_dir: Path, units="m/s2"):
 
     df = pd.DataFrame(rows)
 
-    results_dir = Path("results").resolve()
-    results_dir.mkdir(parents=True, exist_ok=True)
-    catalog_path = results_dir / "catalog.csv"
+    if catalog_path is None:
+        results_dir = Path("results").resolve()
+        results_dir.mkdir(parents=True, exist_ok=True)
+        catalog_path = results_dir / "catalog.csv"
+    catalog_path = Path(catalog_path).resolve()
+    catalog_path.parent.mkdir(parents=True, exist_ok=True)
     df.to_csv(catalog_path, index=False)
 
     return df

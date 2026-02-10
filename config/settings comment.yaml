@@ -1,4 +1,3 @@
-results_dir: C:\Users\rocha\Desktop\USMA 2026
 model_path: C:/Users/rocha/Desktop/SAP2000 test/test.sdb
 case_name: NLTH_BATCH
 use_ping_pong: false
@@ -6,14 +5,14 @@ ping_pong_cases:
 - NLTH_A
 - NLTH_B
 initial_gravity_case: NL DL+0.25LL
-checkpoint_every: 10
-clear_results_after_edp: true
+checkpoint_every: 9
+clear_results_after_edp: false
 energy_link: '4'
 enable_link_energy: false
 energy_component: U1_P
 energy_point_elm: I-End
 energy_mode: signed
-output_time_step: 0.01
+output_time_step: 0.05
 output_units: cm
 accel_in_g: true
 overwrite_db: true

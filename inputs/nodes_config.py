@@ -57,6 +57,7 @@ def load_nodes_config(path: str):
     clear_results_after_edp = bool(data.get("clear_results_after_edp", False))
     initial_gravity_case = str(data.get("initial_gravity_case", "NL DL+0.25LL"))
     energy_link = data.get("energy_link", "")
+    enable_link_energy = bool(data.get("enable_link_energy", False))
     energy_component = data.get("energy_component", "U1_P")
     energy_point_elm = data.get("energy_point_elm", "I-End")
     energy_mode = str(data.get("energy_mode", "signed"))
@@ -98,6 +99,7 @@ def load_nodes_config(path: str):
         clear_results_after_edp,
         initial_gravity_case,
         str(energy_link),
+        enable_link_energy,
         str(energy_component),
         str(energy_point_elm),
         str(energy_mode),
