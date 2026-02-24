@@ -92,6 +92,81 @@ def _maybe_clear_results(sap_model):
     return ret == 0
 
 
+def _ret_code(ret):
+    if isinstance(ret, (list, tuple)):
+        return ret[-1] if ret else 0
+    return ret
+
+
+def _set_only_case_to_run(sap_model, case_name: str):
+    method = getattr(sap_model.Analyze, "SetRunCaseFlag", None)
+    if method is None:
+        print("  [batch] Aviso: Analyze.SetRunCaseFlag no disponible; usando flags actuales de SAP.")
+        return
+
+    # Best-effort API compatibility: clear all run flags, then enable only target case.
+    clear_attempts = [
+        ("", False, True),
+        ("All", False, True),
+        ("", False),
+    ]
+    cleared = False
+    for args in clear_attempts:
+        try:
+            ret = _ret_code(method(*args))
+            if ret == 0:
+                cleared = True
+                break
+        except Exception:
+            continue
+    if not cleared:
+        print("  [batch] Aviso: no se pudo limpiar run flags globales; se intentara activar solo el caso objetivo.")
+
+    enable_attempts = [
+        (case_name, True, False),
+        (case_name, True),
+    ]
+    for args in enable_attempts:
+        try:
+            ret = _ret_code(method(*args))
+            if ret == 0:
+                return
+        except Exception:
+            continue
+    raise RuntimeError(f"No se pudo activar el caso {case_name} para ejecucion (SetRunCaseFlag).")
+
+
+def _case_exists(sap_model, case_name: str) -> bool:
+    try:
+        result = sap_model.LoadCases.GetNameList()
+    except Exception:
+        return False
+    if not isinstance(result, (list, tuple)):
+        return False
+    names = None
+    for item in result:
+        if isinstance(item, (list, tuple)):
+            names = item
+            break
+    if names is None:
+        return False
+    return case_name in names
+
+
+def _set_initial_case_best_effort(sap_model, case_name: str, initial_case: str) -> bool:
+    method = getattr(sap_model.LoadCases.DirHistNonlinear, "SetInitialCase", None)
+    if method is None:
+        return False
+    if not _case_exists(sap_model, case_name):
+        return False
+    init_name = "" if not str(initial_case).strip() else str(initial_case)
+    try:
+        ret = method(case_name, init_name)
+    except Exception:
+        return False
+    return ret == 0
+
+
 def run_batch_from_catalog(
     sap_model,
     catalog_csv,
@@ -136,6 +211,9 @@ def run_batch_from_catalog(
         energy_point_elm,
         energy_mode,
     ) = load_nodes_config(config_path)
+    if use_ping_pong and clear_results_after_edp:
+        print("[batch] Aviso: use_ping_pong=True fuerza clear_results_after_edp=False para mantener la cadena de estados.")
+        clear_results_after_edp = False
     db_path = (results_root / "edp.sqlite").resolve()
     print(f"[batch] DB: {db_path}")
     if overwrite_db and db_path.exists():
@@ -256,6 +334,21 @@ def run_batch_from_catalog(
                     current_initial_case = last_finished_case
                 else:
                     current_initial_case = initial_gravity_case
+                ping_case_a = str(ping_pong_cases[0])
+                ping_case_b = str(ping_pong_cases[1])
+                opposite_case = ping_case_b if case_name == ping_case_a else ping_case_a
+                # Prevent circular dependency A<->B while preserving chained history in current case.
+                if current_initial_case == opposite_case:
+                    anchored = _set_initial_case_best_effort(
+                        sap_model,
+                        opposite_case,
+                        initial_gravity_case,
+                    )
+                    print(
+                        f"  [batch] Anclaje anti-ciclo: {opposite_case} -> {initial_gravity_case} "
+                        f"(aplicado={anchored})"
+                    )
+                print(f"  [batch] Initial case para {case_name}: {current_initial_case}")
 
             print(f"  [batch] Creando/actualizando caso {case_name}")
             nlth_kwargs = dict(
@@ -283,6 +376,9 @@ def run_batch_from_catalog(
                 nlth_kwargs.pop("initial_case", None)
                 nlth_kwargs.pop("p_delta", None)
                 create_or_update_nlth_case(sap_model, **nlth_kwargs)
+
+            print(f"  [batch] Activando caso para correr: {case_name}")
+            _set_only_case_to_run(sap_model, case_name)
 
             print("  [batch] Ejecutando analisis")
             sap_model.Analyze.RunAnalysis()

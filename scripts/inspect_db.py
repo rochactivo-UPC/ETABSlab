@@ -62,22 +62,23 @@ def _plot_node_disp(df_nodes):
         ax_x.plot(
             group["u1_max"],
             group["z"],
-            marker="o",
+            # marker="o",
+            color='black',
             label=f"run {run_id}",
         )
         ax_y.plot(
             group["u2_max"],
             group["z"],
-            marker="o",
+            # marker="o",
             label=f"run {run_id}",
         )
     ax_x.set_xlabel("U1 max (X)")
     ax_y.set_xlabel("U2 max (Y)")
     ax_x.set_ylabel("z")
-    ax_x.set_title("Desplazamientos X (U1)")
-    ax_y.set_title("Desplazamientos Y (U2)")
-    ax_x.grid(True, linestyle="--", alpha=0.4)
-    ax_y.grid(True, linestyle="--", alpha=0.4)
+    ax_x.set_title("Desplazamientos X (cm)")
+    ax_y.set_title("Desplazamientos Y (cm)")
+    ax_x.grid(True, linestyle="-", alpha=0.4)
+    ax_y.grid(True, linestyle="-", alpha=0.4)
     ax_x.legend()
 
 
@@ -90,8 +91,12 @@ def _plot_drifts(df_drifts):
     df_drifts = df_drifts.sort_values(["run_id"])
     for run_id, group in df_drifts.groupby("run_id"):
         y = range(len(group.index))
-        ax_x.plot(group["drift_u1"], y, marker="o", label=f"run {run_id}")
-        ax_y.plot(group["drift_u2"], y, marker="o", label=f"run {run_id}")
+        ax_x.plot(group["drift_u1"], y,
+                  label=f"run {run_id}",
+                  color='black')
+        ax_y.plot(group["drift_u2"], y, 
+                  label=f"run {run_id}",
+                  color='g')
     ax_x.set_xlabel("Drift U1 (X)")
     ax_y.set_xlabel("Drift U2 (Y)")
     ax_x.set_ylabel("Segmento (orden z)")

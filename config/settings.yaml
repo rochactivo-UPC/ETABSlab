@@ -1,7 +1,7 @@
-results_dir: C:\Users\rocha\Desktop\USMA 2026
+results_dir: C:\Users\rocha\Desktop\TEST\results
 model_path: C:/Users/rocha/Desktop/SAP2000 test/test.sdb
 case_name: NLTH_BATCH
-use_ping_pong: false
+use_ping_pong: true
 ping_pong_cases:
 - NLTH_A
 - NLTH_B
@@ -13,7 +13,7 @@ enable_link_energy: false
 energy_component: U1_P
 energy_point_elm: I-End
 energy_mode: signed
-output_time_step: 0.01
+output_time_step: 0.02
 output_units: cm
 accel_in_g: true
 overwrite_db: true
@@ -64,3 +64,5 @@ nodes:
 - name: ROOF
   joint: '32'
   z: 900.0
+mat_dir: C:\Users\rocha\Documents\ETABSlab\data\mat
+catalog_path: C:/Users/rocha/Desktop/TEST/results/catalog.csv
