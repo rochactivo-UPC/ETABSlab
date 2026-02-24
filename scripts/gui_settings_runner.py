@@ -509,6 +509,15 @@ class SettingsGui(QMainWindow):
             self.initial_gravity_case,
         ]:
             widget.setEnabled(enabled)
+        if enabled:
+            self.clear_results_after_edp.setChecked(False)
+            self.clear_results_after_edp.setEnabled(False)
+            self.clear_results_after_edp.setToolTip(
+                "Desactivado automaticamente cuando use_ping_pong esta activo."
+            )
+        else:
+            self.clear_results_after_edp.setEnabled(True)
+            self.clear_results_after_edp.setToolTip("")
 
     def _update_nlth_params_enabled(self):
         enabled = self.nl_apply_parameters.isChecked()
@@ -685,7 +694,10 @@ class SettingsGui(QMainWindow):
             "ping_pong_cases": [self.ping_case_a.text().strip(), self.ping_case_b.text().strip()],
             "initial_gravity_case": self.initial_gravity_case.text().strip(),
             "checkpoint_every": int(self.checkpoint_every.value()),
-            "clear_results_after_edp": self.clear_results_after_edp.isChecked(),
+            "clear_results_after_edp": (
+                self.clear_results_after_edp.isChecked()
+                and (not self.use_ping_pong.isChecked())
+            ),
             "energy_link": self.energy_link.text().strip(),
             "enable_link_energy": self.enable_link_energy.isChecked(),
             "energy_component": self.energy_component.text().strip(),
