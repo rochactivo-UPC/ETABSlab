@@ -4,6 +4,8 @@ use_ping_pong: false
 ping_pong_cases:
 - NLTH_A
 - NLTH_B
+use_chain_series: false
+chain_case_prefix: NLTH_SER
 initial_gravity_case: NL DL+0.25LL
 checkpoint_every: 9
 clear_results_after_edp: false

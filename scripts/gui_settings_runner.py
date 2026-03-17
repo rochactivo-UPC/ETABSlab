@@ -114,6 +114,7 @@ class SettingsGui(QMainWindow):
         self.btn_pre.clicked.connect(self.run_preprocess)
         self.btn_batch.clicked.connect(self.run_batch)
         self.btn_post.clicked.connect(self.run_postprocess)
+        self.btn_post_energy.clicked.connect(self.run_energy_postprocess)
         self.btn_cancel.clicked.connect(self.cancel_process)
         self.btn_catalog_browse.clicked.connect(self._browse_catalog)
         self.btn_results_dir_browse.clicked.connect(self._browse_results_dir)
@@ -121,6 +122,7 @@ class SettingsGui(QMainWindow):
         self.btn_model_browse.clicked.connect(self._browse_model_sdb)
         self.node_count.valueChanged.connect(self._sync_node_rows)
         self.use_ping_pong.toggled.connect(self._update_ping_pong_enabled)
+        self.use_chain_series.toggled.connect(self._update_chain_series_enabled)
         self.nl_apply_parameters.toggled.connect(self._update_nlth_params_enabled)
         self.enable_link_energy.toggled.connect(self._update_link_energy_enabled)
 
@@ -176,6 +178,8 @@ class SettingsGui(QMainWindow):
         self.btn_model_browse = QPushButton("Seleccionar .sdb")
         self.case_name = QLineEdit()
         self.use_ping_pong = QCheckBox()
+        self.use_chain_series = QCheckBox()
+        self.chain_case_prefix = QLineEdit()
         self.ping_case_a = QLineEdit()
         self.ping_case_b = QLineEdit()
         self.initial_gravity_case = QLineEdit()
@@ -197,6 +201,8 @@ class SettingsGui(QMainWindow):
         main_form.addRow("model_path", model_row_widget)
         main_form.addRow("case_name", self.case_name)
         main_form.addRow("use_ping_pong", self.use_ping_pong)
+        main_form.addRow("use_chain_series", self.use_chain_series)
+        main_form.addRow("chain_case_prefix", self.chain_case_prefix)
         main_form.addRow("ping_pong_case_A", self.ping_case_a)
         main_form.addRow("ping_pong_case_B", self.ping_case_b)
         main_form.addRow("initial_gravity_case", self.initial_gravity_case)
@@ -329,6 +335,7 @@ class SettingsGui(QMainWindow):
         self.btn_pre = QPushButton("Preprocesar BD")
         self.btn_batch = QPushButton("Ejecutar batch")
         self.btn_post = QPushButton("Post procesar SQL")
+        self.btn_post_energy = QPushButton("Post procesar energia link")
         self.btn_cancel = QPushButton("Cancelar")
         self.btn_cancel.setEnabled(False)
         self.btn_load_nodes = QPushButton("Cargar nodos desde modelo (pendiente)")
@@ -336,7 +343,7 @@ class SettingsGui(QMainWindow):
 
         button_font = QFont()
         button_font.setPointSize(11)
-        for btn in [self.btn_pre, self.btn_batch, self.btn_post, self.btn_cancel, self.btn_load_nodes]:
+        for btn in [self.btn_pre, self.btn_batch, self.btn_post, self.btn_post_energy, self.btn_cancel, self.btn_load_nodes]:
             btn.setFont(button_font)
             btn.setMinimumHeight(44)
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -344,6 +351,7 @@ class SettingsGui(QMainWindow):
         actions_layout.addWidget(self.btn_pre)
         actions_layout.addWidget(self.btn_batch)
         actions_layout.addWidget(self.btn_post)
+        actions_layout.addWidget(self.btn_post_energy)
         actions_layout.addWidget(self.btn_cancel)
         actions_layout.addWidget(self.btn_load_nodes)
         actions_layout.addStretch(1)
@@ -503,21 +511,39 @@ class SettingsGui(QMainWindow):
 
     def _update_ping_pong_enabled(self):
         enabled = self.use_ping_pong.isChecked()
-        for widget in [
-            self.ping_case_a,
-            self.ping_case_b,
-            self.initial_gravity_case,
-        ]:
-            widget.setEnabled(enabled)
-        if enabled:
+        if enabled and self.use_chain_series.isChecked():
+            self.use_chain_series.setChecked(False)
+        self.ping_case_a.setEnabled(enabled)
+        self.ping_case_b.setEnabled(enabled)
+        self.initial_gravity_case.setEnabled(enabled or self.use_chain_series.isChecked())
+        if enabled or self.use_chain_series.isChecked():
             self.clear_results_after_edp.setChecked(False)
             self.clear_results_after_edp.setEnabled(False)
             self.clear_results_after_edp.setToolTip(
-                "Desactivado automaticamente cuando use_ping_pong esta activo."
+                "Desactivado automaticamente cuando use_ping_pong o use_chain_series esta activo."
             )
         else:
             self.clear_results_after_edp.setEnabled(True)
             self.clear_results_after_edp.setToolTip("")
+
+    def _update_chain_series_enabled(self):
+        enabled = self.use_chain_series.isChecked()
+        if enabled and self.use_ping_pong.isChecked():
+            self.use_ping_pong.setChecked(False)
+        self.chain_case_prefix.setEnabled(enabled)
+        self.initial_gravity_case.setEnabled(enabled or self.use_ping_pong.isChecked())
+        if enabled:
+            self.clear_results_after_edp.setChecked(False)
+            self.clear_results_after_edp.setEnabled(False)
+            self.clear_results_after_edp.setToolTip(
+                "Desactivado automaticamente cuando use_ping_pong o use_chain_series esta activo."
+            )
+            self.case_name.setEnabled(False)
+        else:
+            self.case_name.setEnabled(True)
+            if not self.use_ping_pong.isChecked():
+                self.clear_results_after_edp.setEnabled(True)
+                self.clear_results_after_edp.setToolTip("")
 
     def _update_nlth_params_enabled(self):
         enabled = self.nl_apply_parameters.isChecked()
@@ -553,6 +579,7 @@ class SettingsGui(QMainWindow):
             self.energy_mode,
         ]:
             widget.setEnabled(enabled)
+        self.btn_post_energy.setEnabled(enabled and (self.process is None))
 
     def _parse_yaml_list(self, raw: str):
         value = yaml.safe_load(raw) if raw.strip() else []
@@ -606,6 +633,8 @@ class SettingsGui(QMainWindow):
         self.model_path.setText(str(data.get("model_path", "")))
         self.case_name.setText(str(data.get("case_name", "")))
         self.use_ping_pong.setChecked(bool(data.get("use_ping_pong", False)))
+        self.use_chain_series.setChecked(bool(data.get("use_chain_series", False)))
+        self.chain_case_prefix.setText(str(data.get("chain_case_prefix", "NLTH_SER")))
         ping = data.get("ping_pong_cases", ["NLTH_A", "NLTH_B"])
         self.ping_case_a.setText(str(ping[0] if len(ping) > 0 else "NLTH_A"))
         self.ping_case_b.setText(str(ping[1] if len(ping) > 1 else "NLTH_B"))
@@ -660,6 +689,7 @@ class SettingsGui(QMainWindow):
             self.nodes_table.setItem(i, 1, QTableWidgetItem(str(node.get("joint", ""))))
             self.nodes_table.setItem(i, 2, QTableWidgetItem(str(node.get("z", 0.0))))
         self._update_ping_pong_enabled()
+        self._update_chain_series_enabled()
         self._update_nlth_params_enabled()
         self._update_link_energy_enabled()
 
@@ -691,12 +721,15 @@ class SettingsGui(QMainWindow):
             "model_path": self.model_path.text().strip(),
             "case_name": self.case_name.text().strip(),
             "use_ping_pong": self.use_ping_pong.isChecked(),
+            "use_chain_series": self.use_chain_series.isChecked(),
+            "chain_case_prefix": self.chain_case_prefix.text().strip() or "NLTH_SER",
             "ping_pong_cases": [self.ping_case_a.text().strip(), self.ping_case_b.text().strip()],
             "initial_gravity_case": self.initial_gravity_case.text().strip(),
             "checkpoint_every": int(self.checkpoint_every.value()),
             "clear_results_after_edp": (
                 self.clear_results_after_edp.isChecked()
                 and (not self.use_ping_pong.isChecked())
+                and (not self.use_chain_series.isChecked())
             ),
             "energy_link": self.energy_link.text().strip(),
             "enable_link_energy": self.enable_link_energy.isChecked(),
@@ -770,6 +803,7 @@ class SettingsGui(QMainWindow):
             "run_nlth_batch.py": "etabslab_batch.exe",
             "preprocess_mat_catalog.py": "etabslab_preprocess.exe",
             "inspect_db.py": "etabslab_inspect.exe",
+            "inspect_link_energy.py": "etabslab_energy.exe",
         }
         exe_name = mapping.get(script_name)
         if not exe_name:
@@ -789,6 +823,7 @@ class SettingsGui(QMainWindow):
             self.btn_post,
         ]:
             btn.setEnabled(not running)
+        self.btn_post_energy.setEnabled((not running) and self.enable_link_energy.isChecked())
         self.btn_cancel.setEnabled(running)
 
     def _run_command(self, args: list[str]):
@@ -873,6 +908,24 @@ class SettingsGui(QMainWindow):
         self._run_command(
             [
                 str(self.runtime_dir / "scripts" / "inspect_db.py"),
+                "--results-dir",
+                str(Path(results_dir).resolve()),
+            ]
+        )
+
+    def run_energy_postprocess(self):
+        results_dir = self.results_dir_path.text().strip()
+        if not results_dir:
+            QMessageBox.warning(self, "Resultados", "Debes indicar carpeta de resultados.")
+            return
+        if not self.enable_link_energy.isChecked():
+            QMessageBox.warning(self, "Energia link", "Activa enable_link_energy para usar este postproceso.")
+            return
+        self._run_command(
+            [
+                str(self.runtime_dir / "scripts" / "inspect_link_energy.py"),
+                "--settings",
+                str(self.settings_path),
                 "--results-dir",
                 str(Path(results_dir).resolve()),
             ]

@@ -52,6 +52,8 @@ def load_nodes_config(path: str):
     ping_pong_cases = data.get("ping_pong_cases", ["NLTH_A", "NLTH_B"])
     if not isinstance(ping_pong_cases, list) or len(ping_pong_cases) != 2:
         raise ValueError("settings.yaml: ping_pong_cases debe ser lista de 2 nombres")
+    use_chain_series = bool(data.get("use_chain_series", False))
+    chain_case_prefix = str(data.get("chain_case_prefix", "NLTH_SER")).strip() or "NLTH_SER"
 
     checkpoint_every = int(data.get("checkpoint_every", 10))
     clear_results_after_edp = bool(data.get("clear_results_after_edp", False))
@@ -95,6 +97,8 @@ def load_nodes_config(path: str):
         accel_in_g,
         use_ping_pong,
         ping_pong_cases,
+        use_chain_series,
+        chain_case_prefix,
         checkpoint_every,
         clear_results_after_edp,
         initial_gravity_case,

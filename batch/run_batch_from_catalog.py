@@ -98,42 +98,48 @@ def _ret_code(ret):
     return ret
 
 
-def _set_only_case_to_run(sap_model, case_name: str):
+def _set_run_case_flag(sap_model, case_name: str, do_run: bool) -> bool:
     method = getattr(sap_model.Analyze, "SetRunCaseFlag", None)
     if method is None:
-        print("  [batch] Aviso: Analyze.SetRunCaseFlag no disponible; usando flags actuales de SAP.")
-        return
-
-    # Best-effort API compatibility: clear all run flags, then enable only target case.
-    clear_attempts = [
-        ("", False, True),
-        ("All", False, True),
-        ("", False),
+        return False
+    attempts = [
+        (case_name, do_run, False),
+        (case_name, do_run),
     ]
-    cleared = False
-    for args in clear_attempts:
+    for args in attempts:
         try:
-            ret = _ret_code(method(*args))
-            if ret == 0:
-                cleared = True
-                break
+            if _ret_code(method(*args)) == 0:
+                return True
         except Exception:
             continue
-    if not cleared:
-        print("  [batch] Aviso: no se pudo limpiar run flags globales; se intentara activar solo el caso objetivo.")
+    return False
 
-    enable_attempts = [
-        (case_name, True, False),
-        (case_name, True),
-    ]
-    for args in enable_attempts:
-        try:
-            ret = _ret_code(method(*args))
-            if ret == 0:
-                return
-        except Exception:
-            continue
-    raise RuntimeError(f"No se pudo activar el caso {case_name} para ejecucion (SetRunCaseFlag).")
+
+def _set_only_case_to_run(sap_model, case_name: str):
+    try:
+        _n, names, _status, ret = sap_model.Analyze.GetCaseStatus()
+        if ret == 0 and isinstance(names, (list, tuple)):
+            for name in names:
+                _set_run_case_flag(sap_model, str(name), False)
+    except Exception:
+        pass
+    if not _set_run_case_flag(sap_model, case_name, True):
+        print(f"  [batch] Aviso: no se pudo forzar run flag para {case_name}; SAP usara su seleccion actual.")
+
+
+def _enforce_ping_pong_run_target(
+    sap_model,
+    target_case: str,
+    ping_case_a: str,
+    ping_case_b: str,
+    initial_gravity_case: str,
+):
+    # Guarantee only the target case runs for this step.
+    for name in {str(ping_case_a).strip(), str(ping_case_b).strip(), str(initial_gravity_case).strip()}:
+        if name:
+            _set_run_case_flag(sap_model, name, False)
+    if not _set_run_case_flag(sap_model, target_case, True):
+        print(f"  [batch] Aviso: no se pudo forzar run flag para {target_case}; SAP usara su seleccion actual.")
 
 
 def _case_exists(sap_model, case_name: str) -> bool:
@@ -167,6 +173,27 @@ def _set_initial_case_best_effort(sap_model, case_name: str, initial_case: str) 
     return ret == 0
 
 
+def _copy_case_best_effort(sap_model, source_case: str, target_case: str) -> bool:
+    load_cases = getattr(sap_model, "LoadCases", None)
+    if load_cases is None:
+        return False
+    attempts = [
+        ("Copy", (source_case, target_case)),
+        ("CopyCase", (source_case, target_case)),
+        ("Duplicate", (source_case, target_case)),
+    ]
+    for method_name, args in attempts:
+        method = getattr(load_cases, method_name, None)
+        if method is None:
+            continue
+        try:
+            if _ret_code(method(*args)) == 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def run_batch_from_catalog(
     sap_model,
     catalog_csv,
@@ -192,7 +219,7 @@ def run_batch_from_catalog(
     results_root.mkdir(parents=True, exist_ok=True)
     print(f"[batch] Config nodes: {config_path}")
     (
-        _case_name_cfg,
+        case_name_cfg,
         _model_path,
         output_time_step,
         nodes,
@@ -202,6 +229,8 @@ def run_batch_from_catalog(
         accel_in_g,
         use_ping_pong,
         ping_pong_cases,
+        use_chain_series,
+        chain_case_prefix,
         checkpoint_every,
         clear_results_after_edp,
         initial_gravity_case,
@@ -211,8 +240,11 @@ def run_batch_from_catalog(
         energy_point_elm,
         energy_mode,
     ) = load_nodes_config(config_path)
-    if use_ping_pong and clear_results_after_edp:
-        print("[batch] Aviso: use_ping_pong=True fuerza clear_results_after_edp=False para mantener la cadena de estados.")
+    if use_ping_pong and use_chain_series:
+        raise ValueError("settings.yaml: use_ping_pong y use_chain_series no pueden estar activos a la vez")
+    if (use_ping_pong or use_chain_series) and clear_results_after_edp:
+        mode_name = "use_chain_series" if use_chain_series else "use_ping_pong"
+        print(f"[batch] Aviso: {mode_name}=True fuerza clear_results_after_edp=False para mantener la cadena de estados.")
         clear_results_after_edp = False
     db_path = (results_root / "edp.sqlite").resolve()
     print(f"[batch] DB: {db_path}")
@@ -248,6 +280,8 @@ def run_batch_from_catalog(
     checkpoint = _load_checkpoint(checkpoint_path) if resume else {}
     start_index = int(checkpoint.get("last_index", -1)) + 1 if checkpoint else 0
     last_finished_case = str(checkpoint.get("last_finished_case", "")) if checkpoint else ""
+    ping_case_a = str(ping_pong_cases[0]).strip() if use_ping_pong else ""
+    ping_case_b = str(ping_pong_cases[1]).strip() if use_ping_pong else ""
 
     for idx, row in catalog.iterrows():
         if resume and idx < start_index:
@@ -326,31 +360,38 @@ def run_batch_from_catalog(
                     dt=dt
                 )
 
-            if use_ping_pong:
-                case_name = str(ping_pong_cases[idx % 2])
+            if use_chain_series:
+                case_name = f"{chain_case_prefix}_{idx + 1:04d}_{record_id}"
+            elif use_ping_pong:
+                if not last_finished_case:
+                    case_name = ping_case_a
+                elif last_finished_case == ping_case_a:
+                    case_name = ping_case_b
+                elif last_finished_case == ping_case_b:
+                    case_name = ping_case_a
+                else:
+                    print(
+                        f"  [batch] Aviso: last_finished_case inesperado '{last_finished_case}', reiniciando secuencia en {ping_case_a}"
+                    )
+                    case_name = ping_case_a
             current_initial_case = None
-            if use_ping_pong:
+            if use_chain_series:
                 if last_finished_case:
                     current_initial_case = last_finished_case
                 else:
                     current_initial_case = initial_gravity_case
-                ping_case_a = str(ping_pong_cases[0])
-                ping_case_b = str(ping_pong_cases[1])
-                opposite_case = ping_case_b if case_name == ping_case_a else ping_case_a
-                # Prevent circular dependency A<->B while preserving chained history in current case.
-                if current_initial_case == opposite_case:
-                    anchored = _set_initial_case_best_effort(
-                        sap_model,
-                        opposite_case,
-                        initial_gravity_case,
-                    )
-                    print(
-                        f"  [batch] Anclaje anti-ciclo: {opposite_case} -> {initial_gravity_case} "
-                        f"(aplicado={anchored})"
-                    )
-                print(f"  [batch] Initial case para {case_name}: {current_initial_case}")
+                print(f"  [batch] Chain: {current_initial_case} -> {case_name}")
+            elif use_ping_pong:
+                if last_finished_case:
+                    current_initial_case = last_finished_case
+                else:
+                    current_initial_case = initial_gravity_case
+                print(f"  [batch] Secuencia: {current_initial_case} -> {case_name}")
 
             print(f"  [batch] Creando/actualizando caso {case_name}")
+            if use_chain_series and not last_finished_case:
+                cloned = _copy_case_best_effort(sap_model, case_name_cfg, case_name)
+                print(f"  [batch] Clon base {case_name_cfg} -> {case_name}: {cloned}")
             nlth_kwargs = dict(
                 case_name=case_name,
                 func_x=func_x,
@@ -377,8 +418,16 @@ def run_batch_from_catalog(
                 nlth_kwargs.pop("p_delta", None)
                 create_or_update_nlth_case(sap_model, **nlth_kwargs)
 
-            print(f"  [batch] Activando caso para correr: {case_name}")
-            _set_only_case_to_run(sap_model, case_name)
+            if use_chain_series:
+                _set_only_case_to_run(sap_model, case_name)
+            elif use_ping_pong:
+                _enforce_ping_pong_run_target(
+                    sap_model,
+                    target_case=case_name,
+                    ping_case_a=ping_case_a,
+                    ping_case_b=ping_case_b,
+                    initial_gravity_case=initial_gravity_case,
+                )
 
             print("  [batch] Ejecutando analisis")
             sap_model.Analyze.RunAnalysis()
@@ -513,6 +562,7 @@ def run_batch_from_catalog(
                     "last_record_id": record_id,
                     "last_finished_case": last_finished_case,
                     "use_ping_pong": bool(use_ping_pong),
+                    "use_chain_series": bool(use_chain_series),
                 },
             )
 
@@ -530,6 +580,7 @@ def run_batch_from_catalog(
                 else "",
                 "last_finished_case": last_finished_case,
                 "use_ping_pong": bool(use_ping_pong),
+                "use_chain_series": bool(use_chain_series),
             },
         )
     return final_df

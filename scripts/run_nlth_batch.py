@@ -133,6 +133,8 @@ def main():
         _accel_in_g,
         _use_ping_pong,
         _ping_pong_cases,
+        _use_chain_series,
+        _chain_case_prefix,
         _checkpoint_every,
         _clear_results_after_edp,
         _initial_gravity_case,

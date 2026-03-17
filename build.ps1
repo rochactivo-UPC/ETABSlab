@@ -28,6 +28,12 @@ pyinstaller --onefile --name etabslab_inspect `
   --specpath $spec `
   scripts\inspect_db.py
 
+pyinstaller --onefile --name etabslab_energy `
+  --distpath $dist `
+  --workpath $build `
+  --specpath $spec `
+  scripts\inspect_link_energy.py
+
 pyinstaller --onefile --windowed --name etabslab_gui `
   --icon EQLab.ico `
   --distpath $dist `

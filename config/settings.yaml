@@ -1,15 +1,17 @@
 results_dir: C:\Users\rocha\Desktop\TEST\results
 model_path: C:/Users/rocha/Desktop/SAP2000 test/test.sdb
 case_name: NLTH_BATCH
-use_ping_pong: true
+use_ping_pong: false
 ping_pong_cases:
 - NLTH_A
 - NLTH_B
+use_chain_series: true
+chain_case_prefix: NLTH_SER
 initial_gravity_case: NL DL+0.25LL
 checkpoint_every: 10
-clear_results_after_edp: true
+clear_results_after_edp: false
 energy_link: '4'
-enable_link_energy: false
+enable_link_energy: true
 energy_component: U1_P
 energy_point_elm: I-End
 energy_mode: signed
@@ -20,7 +22,7 @@ overwrite_db: true
 nlth_case:
   apply_parameters: false
   p_delta: true
-  initial_case: NL DL+0.25LL
+  initial_case: NLTH_A
   damping:
     method: SetDampProportional
     args:
@@ -65,4 +67,4 @@ nodes:
   joint: '32'
   z: 900.0
 mat_dir: C:\Users\rocha\Documents\ETABSlab\data\mat
-catalog_path: C:/Users/rocha/Desktop/TEST/results/catalog.csv
+catalog_path: C:\Users\rocha\Desktop\TEST\results\catalog.csv
