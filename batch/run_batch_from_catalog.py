@@ -394,9 +394,13 @@ def run_batch_from_catalog(
                 print(f"  [batch] Secuencia: {current_initial_case} -> {case_name}")
 
             print(f"  [batch] Creando/actualizando caso {case_name}")
-            if use_chain_series and not last_finished_case:
-                cloned = _copy_case_best_effort(sap_model, case_name_cfg, case_name)
-                print(f"  [batch] Clon base {case_name_cfg} -> {case_name}: {cloned}")
+            inherit_from_case = None
+            if use_chain_series:
+                inherit_from_case = last_finished_case or case_name_cfg
+                cloned = False
+                if not _case_exists(sap_model, case_name):
+                    cloned = _copy_case_best_effort(sap_model, inherit_from_case, case_name)
+                print(f"  [batch] Clon chain {inherit_from_case} -> {case_name}: {cloned}")
             nlth_kwargs = dict(
                 case_name=case_name,
                 func_x=func_x,
@@ -414,6 +418,7 @@ def run_batch_from_catalog(
                 nonlinear_parameters=nlth_case_config.get("nonlinear_parameters"),
                 initial_conditions=nlth_case_config.get("initial_conditions"),
                 initial_case=current_initial_case,
+                inherit_from_case=inherit_from_case,
             )
             try:
                 create_or_update_nlth_case(sap_model, **nlth_kwargs)
@@ -421,6 +426,7 @@ def run_batch_from_catalog(
                 # Backward compatibility with older nlth_case signature.
                 nlth_kwargs.pop("initial_case", None)
                 nlth_kwargs.pop("p_delta", None)
+                nlth_kwargs.pop("inherit_from_case", None)
                 create_or_update_nlth_case(sap_model, **nlth_kwargs)
 
             if use_chain_series:

@@ -137,6 +137,44 @@ def _set_only_case_to_run(sap_model, case_name: str):
         print(f"[series] Aviso: no se pudo forzar run flag para {case_name}.")
 
 
+def _case_exists(sap_model, case_name: str) -> bool:
+    try:
+        result = sap_model.LoadCases.GetNameList()
+    except Exception:
+        return False
+    if not isinstance(result, (list, tuple)):
+        return False
+    names = None
+    for item in result:
+        if isinstance(item, (list, tuple)):
+            names = item
+            break
+    if names is None:
+        return False
+    return case_name in names
+
+
+def _copy_case_best_effort(sap_model, source_case: str, target_case: str) -> bool:
+    load_cases = getattr(sap_model, "LoadCases", None)
+    if load_cases is None:
+        return False
+    attempts = [
+        ("Copy", (source_case, target_case)),
+        ("CopyCase", (source_case, target_case)),
+        ("Duplicate", (source_case, target_case)),
+    ]
+    for method_name, args in attempts:
+        method = getattr(load_cases, method_name, None)
+        if method is None:
+            continue
+        try:
+            if _ret_code(method(*args)) == 0:
+                return True
+        except Exception:
+            continue
+    return False
+
+
 def _run_and_check(sap_model, case_name: str):
     _set_only_case_to_run(sap_model, case_name)
     ret_run = _ret_code(sap_model.Analyze.RunAnalysis())
@@ -251,6 +289,12 @@ def main():
             dt=dt,
         )
 
+        inherit_from_case = previous_case if idx > 0 else _case_name
+        cloned = False
+        if inherit_from_case and not _case_exists(sap_model, case_name):
+            cloned = _copy_case_best_effort(sap_model, inherit_from_case, case_name)
+        print(f"[series]   Clon: {inherit_from_case} -> {case_name}: {cloned}")
+
         nlth_kwargs = dict(
             case_name=case_name,
             func_x=func_x,
@@ -268,12 +312,14 @@ def main():
             nonlinear_parameters=nlth_case_config.get("nonlinear_parameters"),
             initial_conditions=nlth_case_config.get("initial_conditions"),
             initial_case=previous_case,
+            inherit_from_case=inherit_from_case,
         )
         try:
             create_or_update_nlth_case(sap_model, **nlth_kwargs)
         except TypeError:
             nlth_kwargs.pop("initial_case", None)
             nlth_kwargs.pop("p_delta", None)
+            nlth_kwargs.pop("inherit_from_case", None)
             create_or_update_nlth_case(sap_model, **nlth_kwargs)
 
         _run_and_check(sap_model, case_name)
