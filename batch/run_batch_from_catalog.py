@@ -18,6 +18,7 @@ from solvers.sap2000.results_setup import select_case_for_output
 from solvers.sap2000.edp_nodes import get_node_displacements_with_histories
 from solvers.sap2000.edp_drift import compute_consecutive_drifts
 from solvers.sap2000.edp_energy import get_link_energy
+from solvers.sap2000.edp_base_reaction import get_base_reaction_envelope
 from inputs.nodes_config import load_nodes_config
 from solvers.sap2000.units import set_present_units, accel_scale_from_units
 from persistence.sqlite_store import (
@@ -56,6 +57,10 @@ def _load_existing_results(results_path: Path) -> pd.DataFrame:
             "max_drift_u2",
             "max_disp_u1",
             "max_disp_u2",
+            "max_vx_base",
+            "max_vy_base",
+            "min_vx_base",
+            "min_vy_base",
             "energy_link_max",
             "energy_link_final",
             "error",
@@ -463,6 +468,10 @@ def run_batch_from_catalog(
                 "max_drift_u2": None,
                 "max_disp_u1": None,
                 "max_disp_u2": None,
+                "max_vx_base": None,
+                "max_vy_base": None,
+                "min_vx_base": None,
+                "min_vy_base": None,
                 "energy_link_max": None,
                 "energy_link_final": None,
                 "error": error,
@@ -510,7 +519,21 @@ def run_batch_from_catalog(
                 results_rows[-1]["max_drift_u2"] = max_drift_u2
                 results_rows[-1]["max_disp_u1"] = max_disp_u1
                 results_rows[-1]["max_disp_u2"] = max_disp_u2
+                try:
+                    base_reaction = get_base_reaction_envelope(sap_model)
+                    results_rows[-1]["max_vx_base"] = base_reaction.get("max_vx")
+                    results_rows[-1]["max_vy_base"] = base_reaction.get("max_vy")
+                    results_rows[-1]["min_vx_base"] = base_reaction.get("min_vx")
+                    results_rows[-1]["min_vy_base"] = base_reaction.get("min_vy")
+                except Exception as exc:
+                    print(f"  Error extrayendo base reaction: {exc}")
+                    base_reaction = None
                 print("  [batch] Guardando EDPs en SQLite")
+                if base_reaction:
+                    summary["max_vx_base"] = base_reaction.get("max_vx")
+                    summary["max_vy_base"] = base_reaction.get("max_vy")
+                    summary["min_vx_base"] = base_reaction.get("min_vx")
+                    summary["min_vy_base"] = base_reaction.get("min_vy")
                 insert_node_disp(db_path, run_id, df_nodes)
                 insert_drifts(db_path, run_id, df_drifts)
                 insert_summary(db_path, run_id, summary)

@@ -74,6 +74,10 @@ def init_db(db_path):
                 seg_max_u2 TEXT,
                 max_drift_r REAL,
                 seg_max_r TEXT,
+                max_vx_base REAL,
+                max_vy_base REAL,
+                min_vx_base REAL,
+                min_vy_base REAL,
                 FOREIGN KEY(run_id) REFERENCES runs(run_id)
             )
             """
@@ -104,6 +108,10 @@ def init_db(db_path):
         _ensure_column(cursor, "drifts", "drift_u2_min", "REAL")
         _ensure_column(cursor, "drifts", "drift_r_max", "REAL")
         _ensure_column(cursor, "drifts", "drift_r_min", "REAL")
+        _ensure_column(cursor, "run_summary", "max_vx_base", "REAL")
+        _ensure_column(cursor, "run_summary", "max_vy_base", "REAL")
+        _ensure_column(cursor, "run_summary", "min_vx_base", "REAL")
+        _ensure_column(cursor, "run_summary", "min_vy_base", "REAL")
         conn.commit()
     finally:
         conn.close()
@@ -235,9 +243,11 @@ def insert_summary(db_path, run_id, summary):
             INSERT INTO run_summary (
                 run_id, max_drift_u1, seg_max_u1,
                 max_drift_u2, seg_max_u2,
-                max_drift_r, seg_max_r
+                max_drift_r, seg_max_r,
+                max_vx_base, max_vy_base,
+                min_vx_base, min_vy_base
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
@@ -247,6 +257,10 @@ def insert_summary(db_path, run_id, summary):
                 summary.get("segment_max_u2"),
                 summary.get("max_drift_r"),
                 summary.get("segment_max_r"),
+                summary.get("max_vx_base"),
+                summary.get("max_vy_base"),
+                summary.get("min_vx_base"),
+                summary.get("min_vy_base"),
             ),
         )
         conn.commit()
