@@ -67,4 +67,4 @@ nodes:
   joint: '32'
   z: 900.0
 mat_dir: C:\Users\rocha\Documents\ETABSlab\data\mat
-catalog_path: C:\Users\rocha\Desktop\TEST\results\catalog.csv
+catalog_path: C:/Users/rocha/Desktop/TEST/results/catalog3.csv

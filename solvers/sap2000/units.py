@@ -27,6 +27,15 @@ _M_PER_UNIT = {
     "ft": 0.3048,
 }
 
+_FORCE_PER_UNITS_KEY = {
+    "lb": "lb",
+    "kip": "kip",
+    "kN": "kN",
+    "kgf": "kgf",
+    "N": "N",
+    "Ton": "Ton",
+}
+
 
 def _units_length_key(units_value):
     if units_value is None:
@@ -85,6 +94,32 @@ def _resolve_units_code(units_value):
         return UNITS_MAP["kN_cm_C"]
 
     return UNITS_MAP.get(raw)
+
+
+def infer_length_unit_label(units_value):
+    key = _units_length_key(units_value)
+    return key or ""
+
+
+def infer_force_unit_label(units_value):
+    code = _resolve_units_code(units_value)
+    if code is not None:
+        for name, val in UNITS_MAP.items():
+            if val == code:
+                units_value = name
+                break
+
+    if not isinstance(units_value, str):
+        return ""
+
+    raw = units_value.strip()
+    if not raw:
+        return ""
+    if raw.lower() == "cm":
+        return "kN"
+
+    token = raw.split("_", 1)[0]
+    return _FORCE_PER_UNITS_KEY.get(token, "")
 
 
 def set_present_units(sap_model, units_value):
