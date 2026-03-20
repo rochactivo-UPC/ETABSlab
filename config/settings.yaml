@@ -1,4 +1,4 @@
-results_dir: C:\Users\rocha\Desktop\TEST\results
+results_dir: C:\Users\rocha\Desktop\test_Fran\results_complete_model\rand
 model_path: C:/Users/rocha/Desktop/SAP2000 test/test.sdb
 case_name: NLTH_BATCH
 use_ping_pong: false
@@ -67,4 +67,4 @@ nodes:
   joint: '32'
   z: 900.0
 mat_dir: C:\Users\rocha\Documents\ETABSlab\data\mat
-catalog_path: C:/Users/rocha/Desktop/TEST/results/catalog3.csv
+catalog_path: C:\Users\rocha\Desktop\TEST\results\catalog3.csv

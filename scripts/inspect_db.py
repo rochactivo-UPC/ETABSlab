@@ -426,6 +426,88 @@ def _export_figure(fig, export_dir: Path, base_name: str):
     print(f"Exported: {pdf_path}")
 
 
+def _export_table(df: pd.DataFrame, export_dir: Path, base_name: str):
+    if df is None or df.empty:
+        return
+    export_dir.mkdir(parents=True, exist_ok=True)
+    csv_path = export_dir / f"{base_name}.csv"
+    df.to_csv(csv_path, index=False)
+    print(f"Exported: {csv_path}")
+
+
+def _build_node_disp_summary(df_nodes):
+    if df_nodes.empty:
+        return pd.DataFrame()
+    summary = (
+        df_nodes.groupby("z", as_index=False)
+        .agg(
+            u1_max_min=("u1_max", "min"),
+            u1_max_mean=("u1_max", "mean"),
+            u1_max_max=("u1_max", "max"),
+            u1_min_min=("u1_min", "min"),
+            u1_min_mean=("u1_min", "mean"),
+            u1_min_max=("u1_min", "max"),
+            u2_max_min=("u2_max", "min"),
+            u2_max_mean=("u2_max", "mean"),
+            u2_max_max=("u2_max", "max"),
+            u2_min_min=("u2_min", "min"),
+            u2_min_mean=("u2_min", "mean"),
+            u2_min_max=("u2_min", "max"),
+        )
+        .sort_values("z")
+    )
+    return summary
+
+
+def _build_drift_story_table(df_drifts):
+    rows = []
+    for run_id, group in df_drifts.groupby("run_id"):
+        ordered = group.reset_index(drop=True).copy()
+        cumulative_height = 0.0
+        for story_idx, row in ordered.iterrows():
+            bottom = cumulative_height
+            top = cumulative_height + float(row["dz"])
+            rows.append(
+                {
+                    "run_id": run_id,
+                    "story_idx": story_idx,
+                    "z_bottom": bottom,
+                    "z_top": top,
+                    "drift_u1_max": float(row["drift_u1_max"]),
+                    "drift_u1_min": float(row["drift_u1_min"]),
+                    "drift_u2_max": float(row["drift_u2_max"]),
+                    "drift_u2_min": float(row["drift_u2_min"]),
+                }
+            )
+            cumulative_height = top
+    return pd.DataFrame(rows)
+
+
+def _build_drift_summary(df_drifts):
+    if df_drifts.empty:
+        return pd.DataFrame()
+    story_df = _build_drift_story_table(df_drifts)
+    summary = (
+        story_df.groupby(["story_idx", "z_bottom", "z_top"], as_index=False)
+        .agg(
+            drift_u1_max_min=("drift_u1_max", "min"),
+            drift_u1_max_mean=("drift_u1_max", "mean"),
+            drift_u1_max_max=("drift_u1_max", "max"),
+            drift_u1_min_min=("drift_u1_min", "min"),
+            drift_u1_min_mean=("drift_u1_min", "mean"),
+            drift_u1_min_max=("drift_u1_min", "max"),
+            drift_u2_max_min=("drift_u2_max", "min"),
+            drift_u2_max_mean=("drift_u2_max", "mean"),
+            drift_u2_max_max=("drift_u2_max", "max"),
+            drift_u2_min_min=("drift_u2_min", "min"),
+            drift_u2_min_mean=("drift_u2_min", "mean"),
+            drift_u2_min_max=("drift_u2_min", "max"),
+        )
+        .sort_values("story_idx")
+    )
+    return summary
+
+
 def _fit_linear(x_values, y_values):
     df = pd.DataFrame({"x": x_values, "y": y_values}).dropna()
     if len(df.index) < 2:
@@ -441,14 +523,13 @@ def _fit_linear(x_values, y_values):
         "slope": float(slope),
         "intercept": float(intercept),
         "r2": float(r2),
+        "n_points": int(len(df.index)),
     }
 
 
-def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit: str):
+def _build_base_shear_scatter_data(df_nodes, df_summary):
     if df_nodes.empty or df_summary.empty:
-        print("No hay datos suficientes para graficar base shear vs displacement.")
-        return None
-
+        return pd.DataFrame()
     disp_by_run = (
         df_nodes.groupby("run_id", as_index=False)
         .agg(
@@ -458,10 +539,63 @@ def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit:
             disp_y_min=("u2_min", "min"),
         )
     )
-    scatter_df = disp_by_run.merge(df_summary, on="run_id", how="inner")
+    return disp_by_run.merge(df_summary, on="run_id", how="inner")
+
+
+def _build_fit_summary(scatter_df):
+    if scatter_df.empty:
+        return pd.DataFrame()
+    fit_specs = [
+        ("X", "max", "disp_x_max", "max_vx_base", "Vx", "Ux"),
+        ("X", "min", "disp_x_min", "min_vx_base", "Vx_min", "Ux_min"),
+        ("Y", "max", "disp_y_max", "max_vy_base", "Vy", "Uy"),
+        ("Y", "min", "disp_y_min", "min_vy_base", "Vy_min", "Uy_min"),
+    ]
+    rows = []
+    for direction, envelope, x_col, y_col, y_name, x_name in fit_specs:
+        fit = _fit_linear(scatter_df[x_col], scatter_df[y_col])
+        if fit is None:
+            rows.append(
+                {
+                    "direction": direction,
+                    "envelope": envelope,
+                    "x_col": x_col,
+                    "y_col": y_col,
+                    "n_points": 0,
+                    "slope": None,
+                    "intercept": None,
+                    "r2": None,
+                    "equation": "not enough points",
+                }
+            )
+            continue
+        rows.append(
+            {
+                "direction": direction,
+                "envelope": envelope,
+                "x_col": x_col,
+                "y_col": y_col,
+                "n_points": fit["n_points"],
+                "slope": fit["slope"],
+                "intercept": fit["intercept"],
+                "r2": fit["r2"],
+                "equation": f"{y_name} = {fit['slope']:.6g} * {x_name} + {fit['intercept']:.6g}",
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit: str):
+    if df_nodes.empty or df_summary.empty:
+        print("No hay datos suficientes para graficar base shear vs displacement.")
+        return None, pd.DataFrame(), pd.DataFrame()
+
+    scatter_df = _build_base_shear_scatter_data(df_nodes, df_summary)
     if scatter_df.empty:
         print("No hay interseccion entre node_disp y run_summary para la grafica scatter.")
-        return None
+        return None, pd.DataFrame(), pd.DataFrame()
+
+    fit_summary = _build_fit_summary(scatter_df)
 
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.scatter(
@@ -581,7 +715,7 @@ def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit:
         axis="y",
     )
     fig.tight_layout()
-    return fig
+    return fig, scatter_df, fit_summary
 
 
 def main():
@@ -612,9 +746,13 @@ def main():
         print(df_drifts)
         print(df_summary)
 
+        disp_summary = _build_node_disp_summary(df_nodes)
+        drift_summary = _build_drift_summary(df_drifts)
         fig_disp = _plot_node_disp(df_nodes, length_unit)
         fig_drift = _plot_drifts(df_drifts, length_unit)
-        fig_scatter = _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit, force_unit)
+        fig_scatter, scatter_summary, fit_summary = _plot_base_shear_vs_disp(
+            df_nodes, df_summary, length_unit, force_unit
+        )
 
         if args.export_dir:
             export_dir = Path(args.export_dir).resolve()
@@ -629,6 +767,10 @@ def main():
             _export_figure(fig_drift, export_dir, "drift_profiles")
         if fig_scatter is not None:
             _export_figure(fig_scatter, export_dir, "base_shear_vs_displacement")
+        _export_table(disp_summary, export_dir, "displacement_summary")
+        _export_table(drift_summary, export_dir, "drift_summary")
+        _export_table(scatter_summary, export_dir, "base_shear_summary")
+        _export_table(fit_summary, export_dir, "linear_fit_summary")
         plt.show()
 
 
