@@ -45,6 +45,36 @@ def _parse_args():
         default=None,
         help="Path to settings.yaml used to infer output units",
     )
+    parser.add_argument(
+        "--hide-titles",
+        dest="hide_titles",
+        action="store_true",
+        help="Hide plot titles",
+    )
+    parser.add_argument(
+        "--xlim",
+        dest="xlim",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("XMIN", "XMAX"),
+        help="Override X-axis limits for all plots",
+    )
+    parser.add_argument(
+        "--ylim",
+        dest="ylim",
+        nargs=2,
+        type=float,
+        default=None,
+        metavar=("YMIN", "YMAX"),
+        help="Override Y-axis limits for all plots",
+    )
+    parser.add_argument("--disp-xlim", dest="disp_xlim", nargs=2, type=float, default=None, metavar=("XMIN", "XMAX"))
+    parser.add_argument("--disp-ylim", dest="disp_ylim", nargs=2, type=float, default=None, metavar=("YMIN", "YMAX"))
+    parser.add_argument("--drift-xlim", dest="drift_xlim", nargs=2, type=float, default=None, metavar=("XMIN", "XMAX"))
+    parser.add_argument("--drift-ylim", dest="drift_ylim", nargs=2, type=float, default=None, metavar=("YMIN", "YMAX"))
+    parser.add_argument("--scatter-xlim", dest="scatter_xlim", nargs=2, type=float, default=None, metavar=("XMIN", "XMAX"))
+    parser.add_argument("--scatter-ylim", dest="scatter_ylim", nargs=2, type=float, default=None, metavar=("YMIN", "YMAX"))
     return parser.parse_args()
 
 
@@ -122,11 +152,19 @@ def _print_counts(conn):
         print(f"{table}: {count}")
 
 
-def _style_axis(ax, xlabel: str, title: str):
+def _style_axis(ax, xlabel: str, title: str, show_titles: bool):
     ax.set_xlabel(xlabel)
-    ax.set_title(title)
+    if show_titles:
+        ax.set_title(title)
     ax.grid(True, linestyle="--", alpha=0.35, linewidth=0.6)
     ax.xaxis.set_major_locator(MaxNLocator(nbins=5))
+
+
+def _apply_manual_limits(ax, xlim=None, ylim=None):
+    if xlim is not None:
+        ax.set_xlim(float(xlim[0]), float(xlim[1]))
+    if ylim is not None:
+        ax.set_ylim(float(ylim[0]), float(ylim[1]))
 
 
 def _set_y_limits(ax, values):
@@ -184,7 +222,7 @@ def _set_symmetric_limits(ax, values, axis="x"):
         ax.set_ylim(lower, upper)
 
 
-def _plot_node_disp(df_nodes, length_unit: str):
+def _plot_node_disp(df_nodes, length_unit: str, plot_opts: dict):
     if df_nodes.empty:
         print("No hay node_disp para graficar.")
         return
@@ -258,8 +296,18 @@ def _plot_node_disp(df_nodes, length_unit: str):
     )
 
     ax_x.set_ylabel(f"Height ({length_unit})")
-    _style_axis(ax_x, f"U1 Displacement ({length_unit})", "Displacement Profile - X")
-    _style_axis(ax_y, f"U2 Displacement ({length_unit})", "Displacement Profile - Y")
+    _style_axis(
+        ax_x,
+        f"U1 Displacement ({length_unit})",
+        "Displacement Profile - X",
+        show_titles=plot_opts["show_titles"],
+    )
+    _style_axis(
+        ax_y,
+        f"U2 Displacement ({length_unit})",
+        "Displacement Profile - Y",
+        show_titles=plot_opts["show_titles"],
+    )
     ax_x.legend()
     ax_y.legend()
     _set_signed_limits(
@@ -272,6 +320,8 @@ def _plot_node_disp(df_nodes, length_unit: str):
     )
     _set_y_limits(ax_x, df_nodes["z"])
     _set_y_limits(ax_y, df_nodes["z"])
+    _apply_manual_limits(ax_x, xlim=plot_opts["xlim"], ylim=plot_opts["ylim"])
+    _apply_manual_limits(ax_y, xlim=plot_opts["xlim"], ylim=plot_opts["ylim"])
     fig.tight_layout()
     return fig
 
@@ -309,6 +359,7 @@ def _plot_step_profiles(
     value_col_min: str,
     xlabel: str,
     title: str,
+    show_titles: bool,
 ):
     story_profiles_max = []
     story_profiles_min = []
@@ -366,11 +417,11 @@ def _plot_step_profiles(
             label="Min mean",
         )
 
-    _style_axis(ax, xlabel, title)
+    _style_axis(ax, xlabel, title, show_titles=show_titles)
     ax.legend()
 
 
-def _plot_drifts(df_drifts, length_unit: str):
+def _plot_drifts(df_drifts, length_unit: str, plot_opts: dict):
     if df_drifts.empty:
         print("No hay drifts para graficar.")
         return
@@ -386,6 +437,7 @@ def _plot_drifts(df_drifts, length_unit: str):
         "drift_u1_min",
         "Story Drift U1",
         "Story Drift Profile - X",
+        show_titles=plot_opts["show_titles"],
     )
     _plot_step_profiles(
         ax_y,
@@ -394,6 +446,7 @@ def _plot_drifts(df_drifts, length_unit: str):
         "drift_u2_min",
         "Story Drift U2",
         "Story Drift Profile - Y",
+        show_titles=plot_opts["show_titles"],
     )
 
     ax_x.set_ylabel(f"Height ({length_unit})")
@@ -412,6 +465,8 @@ def _plot_drifts(df_drifts, length_unit: str):
     )
     _set_y_limits(ax_x, drift_heights)
     _set_y_limits(ax_y, drift_heights)
+    _apply_manual_limits(ax_x, xlim=plot_opts["xlim"], ylim=plot_opts["ylim"])
+    _apply_manual_limits(ax_y, xlim=plot_opts["xlim"], ylim=plot_opts["ylim"])
     fig.tight_layout()
     return fig
 
@@ -585,7 +640,7 @@ def _build_fit_summary(scatter_df):
     return pd.DataFrame(rows)
 
 
-def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit: str):
+def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit: str, plot_opts: dict):
     if df_nodes.empty or df_summary.empty:
         print("No hay datos suficientes para graficar base shear vs displacement.")
         return None, pd.DataFrame(), pd.DataFrame()
@@ -686,7 +741,12 @@ def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit:
     else:
         print("Linear fit Y min: not enough points.")
 
-    _style_axis(ax, f"Maximum Displacement ({length_unit})", "Base Shear vs Maximum Displacement")
+    _style_axis(
+        ax,
+        f"Maximum Displacement ({length_unit})",
+        "Base Shear vs Maximum Displacement",
+        show_titles=plot_opts["show_titles"],
+    )
     ax.set_ylabel(f"Maximum Base Shear ({force_unit})")
     ax.legend()
     _set_signed_limits(
@@ -714,6 +774,7 @@ def _plot_base_shear_vs_disp(df_nodes, df_summary, length_unit: str, force_unit:
         ),
         axis="y",
     )
+    _apply_manual_limits(ax, xlim=plot_opts["xlim"], ylim=plot_opts["ylim"])
     fig.tight_layout()
     return fig, scatter_df, fit_summary
 
@@ -724,6 +785,24 @@ def main():
     if not db_path.exists():
         raise FileNotFoundError(db_path)
     length_unit, force_unit = _resolve_unit_labels(args)
+    global_xlim = tuple(args.xlim) if args.xlim else None
+    global_ylim = tuple(args.ylim) if args.ylim else None
+    plot_opts_common = {"show_titles": not args.hide_titles}
+    disp_opts = {
+        **plot_opts_common,
+        "xlim": tuple(args.disp_xlim) if args.disp_xlim else global_xlim,
+        "ylim": tuple(args.disp_ylim) if args.disp_ylim else global_ylim,
+    }
+    drift_opts = {
+        **plot_opts_common,
+        "xlim": tuple(args.drift_xlim) if args.drift_xlim else global_xlim,
+        "ylim": tuple(args.drift_ylim) if args.drift_ylim else global_ylim,
+    }
+    scatter_opts = {
+        **plot_opts_common,
+        "xlim": tuple(args.scatter_xlim) if args.scatter_xlim else global_xlim,
+        "ylim": tuple(args.scatter_ylim) if args.scatter_ylim else global_ylim,
+    }
 
     with sqlite3.connect(str(db_path)) as conn:
         _print_counts(conn)
@@ -748,10 +827,10 @@ def main():
 
         disp_summary = _build_node_disp_summary(df_nodes)
         drift_summary = _build_drift_summary(df_drifts)
-        fig_disp = _plot_node_disp(df_nodes, length_unit)
-        fig_drift = _plot_drifts(df_drifts, length_unit)
+        fig_disp = _plot_node_disp(df_nodes, length_unit, disp_opts)
+        fig_drift = _plot_drifts(df_drifts, length_unit, drift_opts)
         fig_scatter, scatter_summary, fit_summary = _plot_base_shear_vs_disp(
-            df_nodes, df_summary, length_unit, force_unit
+            df_nodes, df_summary, length_unit, force_unit, scatter_opts
         )
 
         if args.export_dir:

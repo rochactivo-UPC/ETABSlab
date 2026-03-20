@@ -100,6 +100,8 @@ class SettingsGui(QMainWindow):
 
         nodes_tab = self._build_nodes_tab()
         self.tabs.addTab(nodes_tab, "Nodos")
+        postprocess_tab = self._build_postprocess_tab()
+        self.tabs.addTab(postprocess_tab, "Postproceso")
         actions_log_tab = self._build_actions_log_tab()
         self.tabs.addTab(actions_log_tab, "Ejecucion")
         root_layout.addWidget(self.tabs, stretch=1)
@@ -113,7 +115,7 @@ class SettingsGui(QMainWindow):
         self.btn_settings_browse.clicked.connect(self._browse_settings)
         self.btn_pre.clicked.connect(self.run_preprocess)
         self.btn_batch.clicked.connect(self.run_batch)
-        self.btn_post.clicked.connect(self.run_postprocess)
+        self.btn_post_db.clicked.connect(self.run_postprocess)
         self.btn_post_energy.clicked.connect(self.run_energy_postprocess)
         self.btn_cancel.clicked.connect(self.cancel_process)
         self.btn_catalog_browse.clicked.connect(self._browse_catalog)
@@ -125,6 +127,15 @@ class SettingsGui(QMainWindow):
         self.use_chain_series.toggled.connect(self._update_chain_series_enabled)
         self.nl_apply_parameters.toggled.connect(self._update_nlth_params_enabled)
         self.enable_link_energy.toggled.connect(self._update_link_energy_enabled)
+        for cb in [
+            self.post_disp_auto_xlim,
+            self.post_disp_auto_ylim,
+            self.post_drift_auto_xlim,
+            self.post_drift_auto_ylim,
+            self.post_scatter_auto_xlim,
+            self.post_scatter_auto_ylim,
+        ]:
+            cb.toggled.connect(self._update_postprocess_axis_enabled)
 
         self.load_settings()
 
@@ -326,6 +337,101 @@ class SettingsGui(QMainWindow):
         layout.addWidget(self.nodes_table)
         return tab
 
+    def _build_postprocess_tab(self):
+        tab = QWidget()
+        layout = QVBoxLayout(tab)
+
+        db_group = QGroupBox("Postproceso base de datos")
+        db_layout = QVBoxLayout(db_group)
+
+        self.post_show_titles = QCheckBox()
+        self.post_show_titles.setChecked(True)
+
+        header_form = QFormLayout()
+        header_form.addRow("Mostrar titulos", self.post_show_titles)
+        db_layout.addLayout(header_form)
+
+        def _make_limit_group(title: str):
+            group = QGroupBox(title)
+            form = QFormLayout(group)
+            auto_x = QCheckBox()
+            auto_x.setChecked(True)
+            xmin = QDoubleSpinBox()
+            xmax = QDoubleSpinBox()
+            auto_y = QCheckBox()
+            auto_y.setChecked(True)
+            ymin = QDoubleSpinBox()
+            ymax = QDoubleSpinBox()
+            for widget in [xmin, xmax, ymin, ymax]:
+                widget.setRange(-1_000_000_000.0, 1_000_000_000.0)
+                widget.setDecimals(6)
+            xmin.setValue(-1.0)
+            xmax.setValue(1.0)
+            ymin.setValue(-1.0)
+            ymax.setValue(1.0)
+
+            xlim_layout = QHBoxLayout()
+            xlim_layout.addWidget(QLabel("xmin"))
+            xlim_layout.addWidget(xmin)
+            xlim_layout.addWidget(QLabel("xmax"))
+            xlim_layout.addWidget(xmax)
+            xlim_widget = QWidget()
+            xlim_widget.setLayout(xlim_layout)
+
+            ylim_layout = QHBoxLayout()
+            ylim_layout.addWidget(QLabel("ymin"))
+            ylim_layout.addWidget(ymin)
+            ylim_layout.addWidget(QLabel("ymax"))
+            ylim_layout.addWidget(ymax)
+            ylim_widget = QWidget()
+            ylim_widget.setLayout(ylim_layout)
+
+            form.addRow("Limites X auto", auto_x)
+            form.addRow("Limites X manuales", xlim_widget)
+            form.addRow("Limites Y auto", auto_y)
+            form.addRow("Limites Y manuales", ylim_widget)
+            return group, auto_x, xmin, xmax, auto_y, ymin, ymax
+
+        (
+            disp_group,
+            self.post_disp_auto_xlim,
+            self.post_disp_xmin,
+            self.post_disp_xmax,
+            self.post_disp_auto_ylim,
+            self.post_disp_ymin,
+            self.post_disp_ymax,
+        ) = _make_limit_group("Displacement plots")
+        (
+            drift_group,
+            self.post_drift_auto_xlim,
+            self.post_drift_xmin,
+            self.post_drift_xmax,
+            self.post_drift_auto_ylim,
+            self.post_drift_ymin,
+            self.post_drift_ymax,
+        ) = _make_limit_group("Drift plots")
+        (
+            scatter_group,
+            self.post_scatter_auto_xlim,
+            self.post_scatter_xmin,
+            self.post_scatter_xmax,
+            self.post_scatter_auto_ylim,
+            self.post_scatter_ymin,
+            self.post_scatter_ymax,
+        ) = _make_limit_group("Base shear scatter")
+
+        self.btn_post_db = QPushButton("Ejecutar postproceso SQL")
+        self.btn_post_db.setMinimumHeight(44)
+
+        db_layout.addWidget(disp_group)
+        db_layout.addWidget(drift_group)
+        db_layout.addWidget(scatter_group)
+        db_layout.addWidget(self.btn_post_db)
+
+        layout.addWidget(db_group)
+        layout.addStretch(1)
+        return tab
+
     def _build_actions_log_tab(self):
         tab = QWidget()
         layout = QHBoxLayout(tab)
@@ -334,7 +440,6 @@ class SettingsGui(QMainWindow):
         actions_layout = QVBoxLayout(actions_box)
         self.btn_pre = QPushButton("Preprocesar BD")
         self.btn_batch = QPushButton("Ejecutar batch")
-        self.btn_post = QPushButton("Post procesar SQL")
         self.btn_post_energy = QPushButton("Post procesar energia link")
         self.btn_cancel = QPushButton("Cancelar")
         self.btn_cancel.setEnabled(False)
@@ -343,14 +448,13 @@ class SettingsGui(QMainWindow):
 
         button_font = QFont()
         button_font.setPointSize(11)
-        for btn in [self.btn_pre, self.btn_batch, self.btn_post, self.btn_post_energy, self.btn_cancel, self.btn_load_nodes]:
+        for btn in [self.btn_pre, self.btn_batch, self.btn_post_energy, self.btn_cancel, self.btn_load_nodes]:
             btn.setFont(button_font)
             btn.setMinimumHeight(44)
             btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
         actions_layout.addWidget(self.btn_pre)
         actions_layout.addWidget(self.btn_batch)
-        actions_layout.addWidget(self.btn_post)
         actions_layout.addWidget(self.btn_post_energy)
         actions_layout.addWidget(self.btn_cancel)
         actions_layout.addWidget(self.btn_load_nodes)
@@ -581,6 +685,41 @@ class SettingsGui(QMainWindow):
             widget.setEnabled(enabled)
         self.btn_post_energy.setEnabled(enabled and (self.process is None))
 
+    def _update_postprocess_axis_enabled(self):
+        groups = [
+            (
+                self.post_disp_auto_xlim,
+                self.post_disp_xmin,
+                self.post_disp_xmax,
+                self.post_disp_auto_ylim,
+                self.post_disp_ymin,
+                self.post_disp_ymax,
+            ),
+            (
+                self.post_drift_auto_xlim,
+                self.post_drift_xmin,
+                self.post_drift_xmax,
+                self.post_drift_auto_ylim,
+                self.post_drift_ymin,
+                self.post_drift_ymax,
+            ),
+            (
+                self.post_scatter_auto_xlim,
+                self.post_scatter_xmin,
+                self.post_scatter_xmax,
+                self.post_scatter_auto_ylim,
+                self.post_scatter_ymin,
+                self.post_scatter_ymax,
+            ),
+        ]
+        for auto_x, xmin, xmax, auto_y, ymin, ymax in groups:
+            x_manual = not auto_x.isChecked()
+            y_manual = not auto_y.isChecked()
+            xmin.setEnabled(x_manual)
+            xmax.setEnabled(x_manual)
+            ymin.setEnabled(y_manual)
+            ymax.setEnabled(y_manual)
+
     def _parse_yaml_list(self, raw: str):
         value = yaml.safe_load(raw) if raw.strip() else []
         if value is None:
@@ -651,6 +790,45 @@ class SettingsGui(QMainWindow):
         self.energy_component.setText(str(data.get("energy_component", "U1_P")))
         self.energy_point_elm.setText(str(data.get("energy_point_elm", "I-End")))
         self.energy_mode.setText(str(data.get("energy_mode", "signed")))
+        post_db = data.get("postprocess_db", {}) or {}
+        self.post_show_titles.setChecked(bool(post_db.get("show_titles", True)))
+
+        def _load_post_group(prefix: str, defaults: tuple[float, float, float, float]):
+            cfg = post_db.get(prefix, {}) or {}
+            auto_x = bool(cfg.get("auto_xlim", True))
+            auto_y = bool(cfg.get("auto_ylim", True))
+            xmin, xmax, ymin, ymax = defaults
+            vals_x = cfg.get("xlim")
+            vals_y = cfg.get("ylim")
+            if isinstance(vals_x, list) and len(vals_x) == 2:
+                xmin, xmax = float(vals_x[0]), float(vals_x[1])
+            if isinstance(vals_y, list) and len(vals_y) == 2:
+                ymin, ymax = float(vals_y[0]), float(vals_y[1])
+            return auto_x, xmin, xmax, auto_y, ymin, ymax
+
+        vals = _load_post_group("displacement", (-1.0, 1.0, -1.0, 1.0))
+        self.post_disp_auto_xlim.setChecked(vals[0])
+        self.post_disp_xmin.setValue(vals[1])
+        self.post_disp_xmax.setValue(vals[2])
+        self.post_disp_auto_ylim.setChecked(vals[3])
+        self.post_disp_ymin.setValue(vals[4])
+        self.post_disp_ymax.setValue(vals[5])
+
+        vals = _load_post_group("drift", (-1.0, 1.0, 0.0, 1.0))
+        self.post_drift_auto_xlim.setChecked(vals[0])
+        self.post_drift_xmin.setValue(vals[1])
+        self.post_drift_xmax.setValue(vals[2])
+        self.post_drift_auto_ylim.setChecked(vals[3])
+        self.post_drift_ymin.setValue(vals[4])
+        self.post_drift_ymax.setValue(vals[5])
+
+        vals = _load_post_group("scatter", (-1.0, 1.0, -1.0, 1.0))
+        self.post_scatter_auto_xlim.setChecked(vals[0])
+        self.post_scatter_xmin.setValue(vals[1])
+        self.post_scatter_xmax.setValue(vals[2])
+        self.post_scatter_auto_ylim.setChecked(vals[3])
+        self.post_scatter_ymin.setValue(vals[4])
+        self.post_scatter_ymax.setValue(vals[5])
 
         nlth = data.get("nlth_case", {}) or {}
         damp = nlth.get("damping", {}) or {}
@@ -692,6 +870,7 @@ class SettingsGui(QMainWindow):
         self._update_chain_series_enabled()
         self._update_nlth_params_enabled()
         self._update_link_energy_enabled()
+        self._update_postprocess_axis_enabled()
 
     def _collect_nodes(self):
         nodes = []
@@ -714,6 +893,14 @@ class SettingsGui(QMainWindow):
         return nodes
 
     def _build_settings_dict(self):
+        def _post_group(auto_x, xmin, xmax, auto_y, ymin, ymax):
+            return {
+                "auto_xlim": auto_x.isChecked(),
+                "xlim": [float(xmin.value()), float(xmax.value())],
+                "auto_ylim": auto_y.isChecked(),
+                "ylim": [float(ymin.value()), float(ymax.value())],
+            }
+
         return {
             "results_dir": self.results_dir_path.text().strip(),
             "mat_dir": self.mat_dir_path.text().strip(),
@@ -740,6 +927,33 @@ class SettingsGui(QMainWindow):
             "output_units": self.output_units.text().strip(),
             "accel_in_g": self.accel_in_g.isChecked(),
             "overwrite_db": self.overwrite_db.isChecked(),
+            "postprocess_db": {
+                "show_titles": self.post_show_titles.isChecked(),
+                "displacement": _post_group(
+                    self.post_disp_auto_xlim,
+                    self.post_disp_xmin,
+                    self.post_disp_xmax,
+                    self.post_disp_auto_ylim,
+                    self.post_disp_ymin,
+                    self.post_disp_ymax,
+                ),
+                "drift": _post_group(
+                    self.post_drift_auto_xlim,
+                    self.post_drift_xmin,
+                    self.post_drift_xmax,
+                    self.post_drift_auto_ylim,
+                    self.post_drift_ymin,
+                    self.post_drift_ymax,
+                ),
+                "scatter": _post_group(
+                    self.post_scatter_auto_xlim,
+                    self.post_scatter_xmin,
+                    self.post_scatter_xmax,
+                    self.post_scatter_auto_ylim,
+                    self.post_scatter_ymin,
+                    self.post_scatter_ymax,
+                ),
+            },
             "nlth_case": {
                 "apply_parameters": self.nl_apply_parameters.isChecked(),
                 "p_delta": self.nl_p_delta.isChecked(),
@@ -820,7 +1034,7 @@ class SettingsGui(QMainWindow):
             self.btn_settings_browse,
             self.btn_pre,
             self.btn_batch,
-            self.btn_post,
+            self.btn_post_db,
         ]:
             btn.setEnabled(not running)
         self.btn_post_energy.setEnabled((not running) and self.enable_link_energy.isChecked())
@@ -900,16 +1114,45 @@ class SettingsGui(QMainWindow):
             ]
         )
 
+    def _build_postprocess_args(self) -> list[str]:
+        args = []
+        if not self.post_show_titles.isChecked():
+            args.append("--hide-titles")
+        def _append_limits(flag_name: str, auto_box: QCheckBox, min_box: QDoubleSpinBox, max_box: QDoubleSpinBox, axis_label: str):
+            if auto_box.isChecked():
+                return
+            vmin = float(min_box.value())
+            vmax = float(max_box.value())
+            if vmin >= vmax:
+                raise ValueError(f"{flag_name}: los limites {axis_label} deben cumplir min < max.")
+            args.extend([flag_name, str(vmin), str(vmax)])
+
+        _append_limits("--disp-xlim", self.post_disp_auto_xlim, self.post_disp_xmin, self.post_disp_xmax, "X")
+        _append_limits("--disp-ylim", self.post_disp_auto_ylim, self.post_disp_ymin, self.post_disp_ymax, "Y")
+        _append_limits("--drift-xlim", self.post_drift_auto_xlim, self.post_drift_xmin, self.post_drift_xmax, "X")
+        _append_limits("--drift-ylim", self.post_drift_auto_ylim, self.post_drift_ymin, self.post_drift_ymax, "Y")
+        _append_limits("--scatter-xlim", self.post_scatter_auto_xlim, self.post_scatter_xmin, self.post_scatter_xmax, "X")
+        _append_limits("--scatter-ylim", self.post_scatter_auto_ylim, self.post_scatter_ymin, self.post_scatter_ymax, "Y")
+        return args
+
     def run_postprocess(self):
         results_dir = self.results_dir_path.text().strip()
         if not results_dir:
             QMessageBox.warning(self, "Resultados", "Debes indicar carpeta de resultados.")
+            return
+        try:
+            extra_args = self._build_postprocess_args()
+        except Exception as exc:
+            QMessageBox.warning(self, "Postproceso", str(exc))
             return
         self._run_command(
             [
                 str(self.runtime_dir / "scripts" / "inspect_db.py"),
                 "--results-dir",
                 str(Path(results_dir).resolve()),
+                "--settings",
+                str(self.settings_path),
+                *extra_args,
             ]
         )
 

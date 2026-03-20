@@ -68,3 +68,32 @@ nodes:
   z: 900.0
 mat_dir: C:\Users\rocha\Documents\ETABSlab\data\mat
 catalog_path: C:\Users\rocha\Desktop\TEST\results\catalog3.csv
+postprocess_db:
+  show_titles: true
+  displacement:
+    auto_xlim: false
+    xlim:
+    - -15.0
+    - 15.0
+    auto_ylim: true
+    ylim:
+    - -1.0
+    - 1.0
+  drift:
+    auto_xlim: false
+    xlim:
+    - -0.008
+    - 0.008
+    auto_ylim: true
+    ylim:
+    - 0.0
+    - 1.0
+  scatter:
+    auto_xlim: false
+    xlim:
+    - -15.0
+    - 15.0
+    auto_ylim: false
+    ylim:
+    - -10000.0
+    - 10000.0
