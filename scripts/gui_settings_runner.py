@@ -792,43 +792,33 @@ class SettingsGui(QMainWindow):
         self.energy_mode.setText(str(data.get("energy_mode", "signed")))
         post_db = data.get("postprocess_db", {}) or {}
         self.post_show_titles.setChecked(bool(post_db.get("show_titles", True)))
-
-        def _load_post_group(prefix: str, defaults: tuple[float, float, float, float]):
-            cfg = post_db.get(prefix, {}) or {}
-            auto_x = bool(cfg.get("auto_xlim", True))
-            auto_y = bool(cfg.get("auto_ylim", True))
-            xmin, xmax, ymin, ymax = defaults
-            vals_x = cfg.get("xlim")
-            vals_y = cfg.get("ylim")
-            if isinstance(vals_x, list) and len(vals_x) == 2:
-                xmin, xmax = float(vals_x[0]), float(vals_x[1])
-            if isinstance(vals_y, list) and len(vals_y) == 2:
-                ymin, ymax = float(vals_y[0]), float(vals_y[1])
-            return auto_x, xmin, xmax, auto_y, ymin, ymax
-
-        vals = _load_post_group("displacement", (-1.0, 1.0, -1.0, 1.0))
-        self.post_disp_auto_xlim.setChecked(vals[0])
-        self.post_disp_xmin.setValue(vals[1])
-        self.post_disp_xmax.setValue(vals[2])
-        self.post_disp_auto_ylim.setChecked(vals[3])
-        self.post_disp_ymin.setValue(vals[4])
-        self.post_disp_ymax.setValue(vals[5])
-
-        vals = _load_post_group("drift", (-1.0, 1.0, 0.0, 1.0))
-        self.post_drift_auto_xlim.setChecked(vals[0])
-        self.post_drift_xmin.setValue(vals[1])
-        self.post_drift_xmax.setValue(vals[2])
-        self.post_drift_auto_ylim.setChecked(vals[3])
-        self.post_drift_ymin.setValue(vals[4])
-        self.post_drift_ymax.setValue(vals[5])
-
-        vals = _load_post_group("scatter", (-1.0, 1.0, -1.0, 1.0))
-        self.post_scatter_auto_xlim.setChecked(vals[0])
-        self.post_scatter_xmin.setValue(vals[1])
-        self.post_scatter_xmax.setValue(vals[2])
-        self.post_scatter_auto_ylim.setChecked(vals[3])
-        self.post_scatter_ymin.setValue(vals[4])
-        self.post_scatter_ymax.setValue(vals[5])
+        self._set_post_group_values(
+            self.post_disp_auto_xlim,
+            self.post_disp_xmin,
+            self.post_disp_xmax,
+            self.post_disp_auto_ylim,
+            self.post_disp_ymin,
+            self.post_disp_ymax,
+            post_db.get("displacement", {}) or {"auto_xlim": True, "xlim": [-1.0, 1.0], "auto_ylim": True, "ylim": [-1.0, 1.0]},
+        )
+        self._set_post_group_values(
+            self.post_drift_auto_xlim,
+            self.post_drift_xmin,
+            self.post_drift_xmax,
+            self.post_drift_auto_ylim,
+            self.post_drift_ymin,
+            self.post_drift_ymax,
+            post_db.get("drift", {}) or {"auto_xlim": True, "xlim": [-1.0, 1.0], "auto_ylim": True, "ylim": [0.0, 1.0]},
+        )
+        self._set_post_group_values(
+            self.post_scatter_auto_xlim,
+            self.post_scatter_xmin,
+            self.post_scatter_xmax,
+            self.post_scatter_auto_ylim,
+            self.post_scatter_ymin,
+            self.post_scatter_ymax,
+            post_db.get("scatter", {}) or {"auto_xlim": True, "xlim": [-1.0, 1.0], "auto_ylim": True, "ylim": [-1.0, 1.0]},
+        )
 
         nlth = data.get("nlth_case", {}) or {}
         damp = nlth.get("damping", {}) or {}
@@ -1019,6 +1009,18 @@ class SettingsGui(QMainWindow):
             "inspect_db.py": "etabslab_inspect.exe",
             "inspect_link_energy.py": "etabslab_energy.exe",
         }
+
+    def _set_post_group_values(self, auto_x, xmin, xmax, auto_y, ymin, ymax, values):
+        auto_x.setChecked(bool(values.get("auto_xlim", True)))
+        auto_y.setChecked(bool(values.get("auto_ylim", True)))
+        xlim = values.get("xlim", [-1.0, 1.0])
+        ylim = values.get("ylim", [-1.0, 1.0])
+        if isinstance(xlim, list) and len(xlim) == 2:
+            xmin.setValue(float(xlim[0]))
+            xmax.setValue(float(xlim[1]))
+        if isinstance(ylim, list) and len(ylim) == 2:
+            ymin.setValue(float(ylim[0]))
+            ymax.setValue(float(ylim[1]))
         exe_name = mapping.get(script_name)
         if not exe_name:
             return None
